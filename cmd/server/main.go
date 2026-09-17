@@ -73,9 +73,9 @@ type config struct {
 
 func loadConfig() config {
 	return config{
-		Port:        getEnv("PORT", "8080"),
-		BaseURL:     getEnv("BASE_URL", "http://localhost:8080"),
-		PostgresDSN: getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/urlshortener?sslmode=disable"),
+		Port:        getEnv("PORT", "8081"),
+		BaseURL:     getEnv("BASE_URL", "http://localhost:8081"),
+		PostgresDSN: getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/urlshortener?sslmode=disable"),
 		RedisAddr:   getEnv("REDIS_ADDR", "localhost:6379"),
 	}
 }

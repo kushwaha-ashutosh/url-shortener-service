@@ -44,14 +44,22 @@ adds latency to a redirect.
 
 ```bash
 cp .env.example .env
-make up          # starts Postgres + Redis via docker compose
-make run         # starts the API on :8080
+make up          # starts Postgres (:5433) + Redis (:6379) via docker compose
+make run         # starts the API on :8081
 ```
+
+On Windows PowerShell without `make` installed, run the underlying
+commands directly: `docker compose up -d` and `go run ./cmd/server`.
+
+Postgres is mapped to host port **5433** (not 5432) and the API listens
+on **8081** (not 8080) to avoid colliding with other services that may
+already be running locally — adjust `DATABASE_URL`/`PORT` in `.env` if
+those are free on your machine.
 
 Create a short link:
 
 ```bash
-curl -X POST localhost:8080/api/links \
+curl -X POST localhost:8081/api/links \
   -H 'Content-Type: application/json' \
   -d '{"url": "https://example.com/some/very/long/path"}'
 ```
@@ -59,13 +67,13 @@ curl -X POST localhost:8080/api/links \
 Follow it (and generate a click event):
 
 ```bash
-curl -iL localhost:8080/<code>
+curl -iL localhost:8081/<code>
 ```
 
 Check stats:
 
 ```bash
-curl localhost:8080/api/links/<code>/stats
+curl localhost:8081/api/links/<code>/stats
 ```
 
 ## Testing
