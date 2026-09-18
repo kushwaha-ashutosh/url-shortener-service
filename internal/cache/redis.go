@@ -14,12 +14,32 @@ var ErrMiss = errors.New("cache miss")
 
 const linkTTL = 24 * time.Hour
 
+// Tight timeouts and no retries: Redis sits on the redirect hot path as
+// an optional accelerator, with Postgres as the real source of truth.
+// go-redis's defaults (5s dial / 3s read+write, 3 retries with backoff)
+// let a single request hang for 20-30+ seconds when Redis is down
+// before the cache-aside fallback ever gets a chance to run — found by
+// actually killing Redis under load rather than trusting the fallback
+// existed on paper. Fail fast instead, so a Redis outage costs a bounded
+// ~750ms worst case, not tens of seconds, before falling through.
+const (
+	dialTimeout  = 250 * time.Millisecond
+	readTimeout  = 250 * time.Millisecond
+	writeTimeout = 250 * time.Millisecond
+)
+
 type Cache struct {
 	rdb *redis.Client
 }
 
 func New(addr string) *Cache {
-	return &Cache{rdb: redis.NewClient(&redis.Options{Addr: addr})}
+	return &Cache{rdb: redis.NewClient(&redis.Options{
+		Addr:         addr,
+		DialTimeout:  dialTimeout,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		MaxRetries:   -1, // disabled: a stuck retry loop defeats the point of failing fast
+	})}
 }
 
 func (c *Cache) Ping(ctx context.Context) error {

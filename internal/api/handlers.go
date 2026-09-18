@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -142,11 +143,24 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// cacheCallTimeout bounds each Redis call from the redirect hot path
+// with an explicit context deadline, on top of the client's own
+// dial/read timeouts. Found necessary by chaos-testing a Redis outage
+// under concurrent load: client-level timeouts alone didn't cap
+// worst-case latency (requests were still taking 15-20s), most likely
+// because pool-level connection acquisition under contention isn't
+// fully bounded by DialTimeout on its own. A context deadline enforced
+// at the call site is bounded by Go's context cancellation regardless
+// of what the client does internally to acquire a connection.
+const cacheCallTimeout = 300 * time.Millisecond
+
 func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	ctx := r.Context()
 
-	longURL, err := h.cache.GetURL(ctx, code)
+	getCtx, cancelGet := context.WithTimeout(ctx, cacheCallTimeout)
+	longURL, err := h.cache.GetURL(getCtx, code)
+	cancelGet()
 	if err != nil {
 		// Covers both a cache miss and a degraded Redis: Postgres is the
 		// source of truth either way, so fall through rather than fail.
@@ -161,7 +175,10 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		longURL = link.LongURL
-		_ = h.cache.SetURL(ctx, code, longURL) // best-effort fill
+
+		setCtx, cancelSet := context.WithTimeout(ctx, cacheCallTimeout)
+		_ = h.cache.SetURL(setCtx, code, longURL) // best-effort fill
+		cancelSet()
 	}
 
 	h.clicks.Enqueue(store.ClickEvent{

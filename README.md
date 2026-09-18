@@ -9,9 +9,13 @@ adds latency to a redirect.
 
 ## Why this isn't just a toy CRUD app
 
-- **Cache-aside redirects.** `GET /:code` checks Redis first. On a miss
-  it reads Postgres, then fills the cache — no cache stampede handling
-  needed at this scale, but the pattern is the same one that scales.
+- **Cache-aside redirects that actually degrade gracefully.** `GET
+  /:code` checks Redis first, falling back to Postgres on a miss. This
+  claim used to be untested — [chaos-testing it](chaos/README.md) by
+  actually killing Redis under load found the fallback took 20-30s per
+  request in practice (client library defaults, not the fallback logic
+  itself), fixed to a 300ms-bounded worst case, verified with
+  concurrent load before/during/after the outage.
 - **Redirect latency is decoupled from analytics writes.** Every click
   goes into a buffered channel ([internal/api/batcher.go](internal/api/batcher.go))
   and is flushed to Postgres in batches via `COPY`, not one `INSERT` per
@@ -181,5 +185,5 @@ attributed and explained rather than glossed over.
 - [ ] Integration-test the store layer against a real Postgres (e.g.
       testcontainers-go) — the stats aggregation SQL is currently only
       verified manually, since `internal/store` has no automated tests yet
-- [ ] Chaos test: kill Redis mid-load and confirm the Postgres fallback holds
+- [x] Chaos test: kill Redis mid-load (found and fixed a real 20-30s hang — see [chaos/README.md](chaos/README.md))
 - [ ] Deploy publicly (Fly.io/Railway) so the demo link is real
