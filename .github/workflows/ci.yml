@@ -39,9 +39,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v7
         with:
-          # Pinned to a v2 release: the action's "latest" alias resolved
-          # to a v1 binary built with Go 1.24, which refuses to lint a
-          # module targeting Go 1.25 (verified locally with v2.13.2).
+          # v6 of this action can't install golangci-lint v2 binaries at
+          # all ("golangci-lint v2 is not supported by
+          # golangci-lint-action v6"), and v2's "latest" resolves to a
+          # v1 binary built with Go 1.24, which refuses to lint a module
+          # targeting Go 1.25 — so both the action and the version need
+          # to be pinned. v2.13.2 verified locally with zero issues.
           version: v2.13.2
