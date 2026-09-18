@@ -174,15 +174,60 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, longURL, http.StatusFound)
 }
 
+type dailyClicksResponse struct {
+	Day    string `json:"day"`
+	Clicks int64  `json:"clicks"`
+}
+
+type namedCountResponse struct {
+	Name   string `json:"name"`
+	Clicks int64  `json:"clicks"`
+}
+
+type statsResponse struct {
+	Code         string                `json:"code"`
+	TotalClicks  int64                 `json:"total_clicks"`
+	ClicksByDay  []dailyClicksResponse `json:"clicks_by_day"`
+	TopReferrers []namedCountResponse  `json:"top_referrers"`
+	TopBrowsers  []namedCountResponse  `json:"top_browsers"`
+}
+
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
-	stats, err := h.store.GetStats(r.Context(), code)
-	if err != nil {
-		logging.From(r.Context()).Error("failed to load stats", "code", code, "error", err)
+	ctx := r.Context()
+
+	if _, err := h.store.GetLink(ctx, code); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "short link not found")
+			return
+		}
+		logging.From(ctx).Error("failed to look up link for stats", "code", code, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to load stats")
 		return
 	}
-	writeJSON(w, http.StatusOK, stats)
+
+	stats, err := h.store.GetStats(ctx, code)
+	if err != nil {
+		logging.From(ctx).Error("failed to load stats", "code", code, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to load stats")
+		return
+	}
+
+	resp := statsResponse{
+		Code:        stats.Code,
+		TotalClicks: stats.TotalClicks,
+	}
+	for _, d := range stats.ClicksByDay {
+		resp.ClicksByDay = append(resp.ClicksByDay, dailyClicksResponse{Day: d.Day, Clicks: d.Clicks})
+	}
+	for _, ref := range stats.TopReferrers {
+		resp.TopReferrers = append(resp.TopReferrers, namedCountResponse{Name: ref.Name, Clicks: ref.Clicks})
+	}
+	for _, b := range stats.TopBrowsers {
+		resp.TopBrowsers = append(resp.TopBrowsers, namedCountResponse{Name: b.Name, Clicks: b.Clicks})
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // normalizeURL rejects empty input and non-http(s) schemes so the

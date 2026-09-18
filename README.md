@@ -40,6 +40,13 @@ adds latency to a redirect.
   [internal/api/middleware.go](internal/api/middleware.go)) — so a
   redirect's log entry and any error it hits can be found by grepping
   for one ID, not reconstructed by guessing timestamps.
+- **Aggregated stats, not just a counter.** `GET /api/links/:code/stats`
+  returns a 30-day daily series, top referrers (empty referrer grouped
+  as `direct`), and a browser-family breakdown — all computed as
+  `GROUP BY` aggregates in Postgres ([internal/store/postgres.go](internal/store/postgres.go))
+  rather than pulling every click row back to Go to count in memory.
+  Also returns `404` for a code that was never created, instead of a
+  misleading `200` with all-zero counts (the previous behavior).
 
 ## Architecture
 
@@ -98,10 +105,24 @@ Follow it (and generate a click event):
 curl -iL localhost:8081/<code>
 ```
 
-Check stats:
+Check stats (total, a 30-day daily series, top referrers, and a
+browser-family breakdown):
 
 ```bash
 curl localhost:8081/api/links/<code>/stats
+```
+
+```json
+{
+  "code": "faNiQGa",
+  "total_clicks": 5,
+  "clicks_by_day": [{"day": "2026-09-18", "clicks": 5}],
+  "top_referrers": [
+    {"name": "direct", "clicks": 2},
+    {"name": "https://twitter.com/foo", "clicks": 2}
+  ],
+  "top_browsers": [{"name": "Chrome", "clicks": 2}, {"name": "Firefox", "clicks": 1}]
+}
 ```
 
 ## Testing
@@ -130,9 +151,12 @@ attributed and explained rather than glossed over.
 - [x] Rate limiting on `POST /api/links` to prevent abuse
 - [x] Custom short codes
 - [x] Structured logging + request ID middleware
-- [ ] Aggregated stats by day/referrer/user-agent, not just a total count
+- [x] Aggregated stats by day/referrer/user-agent, not just a total count
 - [ ] Small React dashboard for link + click stats
 - [ ] Dockerize the app itself (currently only Postgres/Redis are containerized)
 - [x] CI pipeline (build/vet/test/lint on every push)
+- [ ] Integration-test the store layer against a real Postgres (e.g.
+      testcontainers-go) — the stats aggregation SQL is currently only
+      verified manually, since `internal/store` has no automated tests yet
 - [ ] Chaos test: kill Redis mid-load and confirm the Postgres fallback holds
 - [ ] Deploy publicly (Fly.io/Railway) so the demo link is real
