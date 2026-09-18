@@ -67,7 +67,7 @@ func (h *Handler) Routes() chi.Router {
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }
 
 type createLinkRequest struct {
@@ -209,7 +209,9 @@ func normalizeURL(raw string) (string, error) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	// Nothing actionable to do with an encode error here: headers and
+	// status are already written, so the response is already committed.
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {

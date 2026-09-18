@@ -36,7 +36,11 @@ func main() {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			log.Warn("failed to close redis client cleanly", "error", err)
+		}
+	}()
 
 	batcher := api.NewClickBatcher(s, 10_000, 200, 2*time.Second)
 	batcherCtx, cancelBatcher := context.WithCancel(context.Background())
