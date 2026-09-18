@@ -86,10 +86,17 @@ Covers: short-code generation (length, character set, collision rate
 over repeated draws) and URL validation (rejects non-http(s) schemes,
 empty input, malformed URLs).
 
+## Load testing
+
+See [loadtest/README.md](loadtest/README.md) — the redirect path holds
+0% errors at ~2,400 req/s through a Docker network hop (p99 132ms) and
+~4,700 req/s native same-host (p99 65ms), with the gap between the two
+attributed and explained rather than glossed over.
+
 ## Roadmap
 
+- [x] k6 load test script for the redirect hot path
 - [ ] Custom short codes (currently random-only)
 - [ ] Aggregated stats by day/referrer/user-agent, not just a total count
 - [ ] Small React dashboard for link + click stats
-- [ ] k6 load test script for the redirect hot path
 - [ ] Rate limiting on `POST /api/links` to prevent abuse
