@@ -28,5 +28,25 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: 8081
+      BASE_URL: http://localhost:8081
+      # Service names resolve on the compose network; note this is
+      # postgres:5432, not the host-mapped 5433 above — that mapping
+      # only exists for reaching Postgres from outside Docker.
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/urlshortener?sslmode=disable
+      REDIS_ADDR: redis:6379
+      RATE_LIMIT_REQUESTS: 20
+      RATE_LIMIT_WINDOW_SECONDS: 60
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   pgdata:

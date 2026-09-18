@@ -47,6 +47,12 @@ adds latency to a redirect.
   rather than pulling every click row back to Go to count in memory.
   Also returns `404` for a code that was never created, instead of a
   misleading `200` with all-zero counts (the previous behavior).
+- **The app itself is containerized**, not just its dependencies. A
+  multi-stage [Dockerfile](Dockerfile) builds a static binary and ships
+  it in a `alpine` runtime image (~37MB, no Go toolchain along for the
+  ride) running as a non-root user — `docker compose up -d --build` is
+  a genuine one-command demo, not "clone this and configure five things
+  first."
 
 ## Architecture
 
@@ -66,21 +72,38 @@ adds latency to a redirect.
               └───────────────┘
 ```
 
-## Running locally
+## Running it
+
+One command, nothing installed locally except Docker — builds the
+app's own image (multi-stage, ~37MB final) alongside Postgres and
+Redis, and starts all three:
 
 ```bash
-cp .env.example .env
-make up          # starts Postgres (:5433) + Redis (:6379) via docker compose
-make run         # starts the API on :8081
+make up          # docker compose up -d --build
 ```
 
-On Windows PowerShell without `make` installed, run the underlying
-commands directly: `docker compose up -d` and `go run ./cmd/server`.
+```bash
+curl localhost:8081/healthz   # ok
+```
+
+On Windows PowerShell without `make` installed: `docker compose up -d --build`.
 
 Postgres is mapped to host port **5433** (not 5432) and the API listens
 on **8081** (not 8080) to avoid colliding with other services that may
-already be running locally — adjust `DATABASE_URL`/`PORT` in `.env` if
-those are free on your machine.
+already be running locally.
+
+### Local dev loop
+
+Rebuilding the app's Docker image on every code change is slow for
+active development. `make up-deps` starts only Postgres and Redis,
+and `make run` runs the app natively against them with a normal
+`go run` edit/rebuild cycle:
+
+```bash
+cp .env.example .env
+make up-deps     # Postgres (:5433) + Redis (:6379) only
+make run         # go run ./cmd/server, on :8081
+```
 
 Create a short link:
 
@@ -153,7 +176,7 @@ attributed and explained rather than glossed over.
 - [x] Structured logging + request ID middleware
 - [x] Aggregated stats by day/referrer/user-agent, not just a total count
 - [ ] Small React dashboard for link + click stats
-- [ ] Dockerize the app itself (currently only Postgres/Redis are containerized)
+- [x] Dockerize the app itself
 - [x] CI pipeline (build/vet/test/lint on every push)
 - [ ] Integration-test the store layer against a real Postgres (e.g.
       testcontainers-go) — the stats aggregation SQL is currently only
