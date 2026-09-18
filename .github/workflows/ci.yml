@@ -41,4 +41,7 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          # Pinned to a v2 release: the action's "latest" alias resolved
+          # to a v1 binary built with Go 1.24, which refuses to lint a
+          # module targeting Go 1.25 (verified locally with v2.13.2).
+          version: v2.13.2
