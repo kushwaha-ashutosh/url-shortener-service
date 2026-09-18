@@ -1,4 +1,4 @@
-module github.com/ashutoshk/url-shortener
+module github.com/kushwaha-ashutosh/url-shortener
 
 go 1.25
 

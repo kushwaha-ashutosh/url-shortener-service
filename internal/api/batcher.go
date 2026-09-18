@@ -2,10 +2,10 @@ package api
 
 import (
 	"context"
-	"log"
 	"time"
 
-	"github.com/ashutoshk/url-shortener/internal/store"
+	"github.com/kushwaha-ashutosh/url-shortener/internal/logging"
+	"github.com/kushwaha-ashutosh/url-shortener/internal/store"
 )
 
 // ClickBatcher decouples the redirect hot path from the write cost of
@@ -40,7 +40,7 @@ func (b *ClickBatcher) Enqueue(e store.ClickEvent) {
 	select {
 	case b.events <- e:
 	default:
-		log.Printf("click buffer full, dropping event for code=%s", e.Code)
+		logging.Base().Warn("click buffer full, dropping event", "code", e.Code)
 	}
 }
 
@@ -83,7 +83,7 @@ func (b *ClickBatcher) flush(ctx context.Context) {
 		return
 	}
 	if err := b.store.InsertClicks(ctx, b.batch); err != nil {
-		log.Printf("failed to flush %d click events: %v", len(b.batch), err)
+		logging.Base().Error("failed to flush click events", "count", len(b.batch), "error", err)
 	}
 	b.batch = b.batch[:0]
 }

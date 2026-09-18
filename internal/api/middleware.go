@@ -1,9 +1,13 @@
 package api
 
 import (
-	"log"
+	"crypto/rand"
+	"encoding/hex"
 	"net"
 	"net/http"
+	"time"
+
+	"github.com/kushwaha-ashutosh/url-shortener/internal/logging"
 )
 
 // RateLimit gates a route behind the handler's Redis-backed limiter,
@@ -18,7 +22,7 @@ func (h *Handler) RateLimit(next http.Handler) http.Handler {
 
 		allowed, err := h.limiter.Allow(r.Context(), key)
 		if err != nil {
-			log.Printf("rate limiter error, failing open: %v", err)
+			logging.From(r.Context()).Warn("rate limiter error, failing open", "error", err)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -37,4 +41,50 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// RequestID tags every request with an ID — reusing one supplied via
+// X-Request-Id (so a request can be traced across services behind a
+// gateway) or generating one otherwise — echoes it back in the
+// response, and logs one structured line per request. Every log line
+// produced further down the chain via logging.From(r.Context()) is
+// automatically tagged with the same ID, so a redirect's log entry and
+// the async click-write it triggered can be correlated later.
+func RequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-Id")
+		if id == "" {
+			id = generateRequestID()
+		}
+		w.Header().Set("X-Request-Id", id)
+
+		ctx := logging.WithRequestID(r.Context(), id)
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+
+		start := time.Now()
+		next.ServeHTTP(rec, r.WithContext(ctx))
+
+		logging.From(ctx).Info("request completed",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rec.status,
+			"duration_ms", time.Since(start).Milliseconds(),
+		)
+	})
+}
+
+func generateRequestID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
 }

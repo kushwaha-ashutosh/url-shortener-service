@@ -30,6 +30,14 @@ adds latency to a redirect.
   race past the limit. On a Redis error the limiter fails open (logs
   and lets the request through) — a degraded rate limiter shouldn't be
   able to take down link creation entirely.
+- **Structured logs correlated by request ID.** Every request is
+  tagged with an ID (reused from an inbound `X-Request-Id` header if
+  present, so it survives a hop behind a gateway), echoed back in the
+  response, and attached to every log line produced while handling
+  that request ([internal/logging](internal/logging),
+  [internal/api/middleware.go](internal/api/middleware.go)) — so a
+  redirect's log entry and any error it hits can be found by grepping
+  for one ID, not reconstructed by guessing timestamps.
 
 ## Architecture
 
@@ -101,8 +109,11 @@ make test
 ```
 
 Covers: short-code generation (length, character set, collision rate
-over repeated draws) and URL validation (rejects non-http(s) schemes,
-empty input, malformed URLs).
+over repeated draws), URL and custom-code validation, and the rate
+limiter (admits up to the limit, denies over it, keys are independent
+per client, and — via 100 concurrent goroutines racing a limit of
+20 — that the atomic Lua script never admits more than the limit
+under concurrent load).
 
 ## Load testing
 
@@ -116,6 +127,7 @@ attributed and explained rather than glossed over.
 - [x] k6 load test script for the redirect hot path
 - [x] Rate limiting on `POST /api/links` to prevent abuse
 - [x] Custom short codes
+- [x] Structured logging + request ID middleware
 - [ ] Aggregated stats by day/referrer/user-agent, not just a total count
 - [ ] Small React dashboard for link + click stats
 - [ ] Dockerize the app itself (currently only Postgres/Redis are containerized)

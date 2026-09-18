@@ -11,10 +11,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ashutoshk/url-shortener/internal/cache"
-	"github.com/ashutoshk/url-shortener/internal/ratelimit"
-	"github.com/ashutoshk/url-shortener/internal/shortener"
-	"github.com/ashutoshk/url-shortener/internal/store"
+	"github.com/kushwaha-ashutosh/url-shortener/internal/cache"
+	"github.com/kushwaha-ashutosh/url-shortener/internal/logging"
+	"github.com/kushwaha-ashutosh/url-shortener/internal/ratelimit"
+	"github.com/kushwaha-ashutosh/url-shortener/internal/shortener"
+	"github.com/kushwaha-ashutosh/url-shortener/internal/store"
 )
 
 const (
@@ -56,6 +57,7 @@ func NewHandler(s *store.Store, c *cache.Cache, cb *ClickBatcher, rl *ratelimit.
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Use(RequestID)
 	r.Get("/healthz", h.HealthCheck)
 	r.With(h.RateLimit).Post("/api/links", h.CreateLink)
 	r.Get("/api/links/{code}/stats", h.GetStats)
@@ -104,6 +106,7 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusConflict, "custom_code is already in use")
 				return
 			}
+			logging.From(r.Context()).Error("failed to create link with custom code", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to create link")
 			return
 		}
@@ -111,6 +114,7 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		for attempt := 0; attempt < maxCreateRetries; attempt++ {
 			code, err := shortener.Generate(codeLength)
 			if err != nil {
+				logging.From(r.Context()).Error("failed to generate short code", "error", err)
 				writeError(w, http.StatusInternalServerError, "failed to generate code")
 				return
 			}
@@ -121,6 +125,7 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 			if errors.Is(err, store.ErrCodeTaken) {
 				continue // collision on a 7-char random code is rare; just retry
 			}
+			logging.From(r.Context()).Error("failed to create link", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to create link")
 			return
 		}
@@ -151,6 +156,7 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusNotFound, "short link not found")
 				return
 			}
+			logging.From(ctx).Error("failed to look up link", "code", code, "error", err)
 			writeError(w, http.StatusInternalServerError, "lookup failed")
 			return
 		}
@@ -172,6 +178,7 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	stats, err := h.store.GetStats(r.Context(), code)
 	if err != nil {
+		logging.From(r.Context()).Error("failed to load stats", "code", code, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to load stats")
 		return
 	}
