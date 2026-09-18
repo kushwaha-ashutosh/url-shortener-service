@@ -30,6 +30,13 @@ func (c *Cache) Close() error {
 	return c.rdb.Close()
 }
 
+// Client exposes the underlying Redis client for callers that need
+// Redis features beyond the cache-aside get/set above, such as the
+// rate limiter's Lua script.
+func (c *Cache) Client() *redis.Client {
+	return c.rdb
+}
+
 func key(code string) string {
 	return "link:" + code
 }

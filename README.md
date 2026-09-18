@@ -21,6 +21,15 @@ adds latency to a redirect.
 - **Open-redirect protection.** Submitted URLs are parsed and restricted
   to `http`/`https` with a host, so the service can't be used to shorten
   `javascript:`/`data:`/`file:` URIs.
+- **Distributed rate limiting on link creation.** `POST /api/links` is
+  gated by a sliding-window-log limiter ([internal/ratelimit](internal/ratelimit))
+  backed by Redis, not an in-process counter — the limit holds even
+  with multiple API instances behind a load balancer, since they all
+  check the same Redis key. The count-then-add sequence runs as a
+  single Lua script so concurrent requests from the same client can't
+  race past the limit. On a Redis error the limiter fails open (logs
+  and lets the request through) — a degraded rate limiter shouldn't be
+  able to take down link creation entirely.
 
 ## Architecture
 
@@ -96,7 +105,7 @@ attributed and explained rather than glossed over.
 ## Roadmap
 
 - [x] k6 load test script for the redirect hot path
+- [x] Rate limiting on `POST /api/links` to prevent abuse
 - [ ] Custom short codes (currently random-only)
 - [ ] Aggregated stats by day/referrer/user-agent, not just a total count
 - [ ] Small React dashboard for link + click stats
-- [ ] Rate limiting on `POST /api/links` to prevent abuse

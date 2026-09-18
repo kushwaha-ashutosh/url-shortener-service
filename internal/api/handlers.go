@@ -11,12 +11,13 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ashutoshk/url-shortener/internal/cache"
+	"github.com/ashutoshk/url-shortener/internal/ratelimit"
 	"github.com/ashutoshk/url-shortener/internal/shortener"
 	"github.com/ashutoshk/url-shortener/internal/store"
 )
 
 const (
-	codeLength      = 7
+	codeLength       = 7
 	maxCreateRetries = 5
 )
 
@@ -24,17 +25,18 @@ type Handler struct {
 	store   *store.Store
 	cache   *cache.Cache
 	clicks  *ClickBatcher
+	limiter *ratelimit.Limiter
 	baseURL string
 }
 
-func NewHandler(s *store.Store, c *cache.Cache, cb *ClickBatcher, baseURL string) *Handler {
-	return &Handler{store: s, cache: c, clicks: cb, baseURL: baseURL}
+func NewHandler(s *store.Store, c *cache.Cache, cb *ClickBatcher, rl *ratelimit.Limiter, baseURL string) *Handler {
+	return &Handler{store: s, cache: c, clicks: cb, limiter: rl, baseURL: baseURL}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/healthz", h.HealthCheck)
-	r.Post("/api/links", h.CreateLink)
+	r.With(h.RateLimit).Post("/api/links", h.CreateLink)
 	r.Get("/api/links/{code}/stats", h.GetStats)
 	r.Get("/{code}", h.Redirect)
 	return r
