@@ -1,5 +1,7 @@
 # url-shortener
 
+[![CI](https://github.com/kushwaha-ashutosh/url-shortener-service/actions/workflows/ci.yml/badge.svg)](https://github.com/kushwaha-ashutosh/url-shortener-service/actions/workflows/ci.yml)
+
 A URL shortener built like it might actually need to survive traffic:
 redirects are served from a Redis cache in front of Postgres, and click
 analytics are logged asynchronously so writing an analytics row never
@@ -131,6 +133,6 @@ attributed and explained rather than glossed over.
 - [ ] Aggregated stats by day/referrer/user-agent, not just a total count
 - [ ] Small React dashboard for link + click stats
 - [ ] Dockerize the app itself (currently only Postgres/Redis are containerized)
-- [ ] CI pipeline (build/vet/test on every push)
+- [x] CI pipeline (build/vet/test/lint on every push)
 - [ ] Chaos test: kill Redis mid-load and confirm the Postgres fallback holds
 - [ ] Deploy publicly (Fly.io/Railway) so the demo link is real
