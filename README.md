@@ -73,6 +73,15 @@ curl -X POST localhost:8081/api/links \
   -d '{"url": "https://example.com/some/very/long/path"}'
 ```
 
+Or with a custom code (3-32 chars, letters/numbers/hyphens/underscores,
+returns `409` if taken):
+
+```bash
+curl -X POST localhost:8081/api/links \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://example.com/some/path", "custom_code": "my-link"}'
+```
+
 Follow it (and generate a click event):
 
 ```bash
@@ -106,6 +115,10 @@ attributed and explained rather than glossed over.
 
 - [x] k6 load test script for the redirect hot path
 - [x] Rate limiting on `POST /api/links` to prevent abuse
-- [ ] Custom short codes (currently random-only)
+- [x] Custom short codes
 - [ ] Aggregated stats by day/referrer/user-agent, not just a total count
 - [ ] Small React dashboard for link + click stats
+- [ ] Dockerize the app itself (currently only Postgres/Redis are containerized)
+- [ ] CI pipeline (build/vet/test on every push)
+- [ ] Chaos test: kill Redis mid-load and confirm the Postgres fallback holds
+- [ ] Deploy publicly (Fly.io/Railway) so the demo link is real

@@ -1,6 +1,9 @@
 package api
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeURL(t *testing.T) {
 	cases := []struct {
@@ -24,6 +27,35 @@ func TestNormalizeURL(t *testing.T) {
 			_, err := normalizeURL(tc.input)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("normalizeURL(%q): got err=%v, wantErr=%v", tc.input, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCustomCode(t *testing.T) {
+	cases := []struct {
+		name    string
+		code    string
+		wantErr bool
+	}{
+		{"valid alnum", "my-link_1", false},
+		{"valid minimum length", "abc", false},
+		{"valid maximum length", strings.Repeat("a", 32), false},
+		{"too short", "ab", true},
+		{"too long", strings.Repeat("a", 33), true},
+		{"empty", "", true},
+		{"contains slash", "a/b", true},
+		{"contains space", "a b", true},
+		{"reserved api", "api", true},
+		{"reserved healthz", "healthz", true},
+		{"reserved case insensitive", "HealthZ", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateCustomCode(tc.code)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateCustomCode(%q): got err=%v, wantErr=%v", tc.code, err, tc.wantErr)
 			}
 		})
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,6 +21,26 @@ const (
 	codeLength       = 7
 	maxCreateRetries = 5
 )
+
+var customCodePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{3,32}$`)
+
+// reservedCodes can't be used as custom codes because they'd either
+// never be reachable (an explicit route like /healthz always wins over
+// the /{code} wildcard) or would be confusing to see as a short link.
+var reservedCodes = map[string]bool{
+	"api":     true,
+	"healthz": true,
+}
+
+func validateCustomCode(code string) error {
+	if !customCodePattern.MatchString(code) {
+		return errors.New("custom_code must be 3-32 characters (letters, numbers, hyphens, underscores)")
+	}
+	if reservedCodes[strings.ToLower(code)] {
+		return errors.New("custom_code is reserved")
+	}
+	return nil
+}
 
 type Handler struct {
 	store   *store.Store
@@ -48,7 +69,8 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 type createLinkRequest struct {
-	URL string `json:"url"`
+	URL        string `json:"url"`
+	CustomCode string `json:"custom_code,omitempty"`
 }
 
 type createLinkResponse struct {
@@ -71,25 +93,41 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var link *store.Link
-	for attempt := 0; attempt < maxCreateRetries; attempt++ {
-		code, err := shortener.Generate(codeLength)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to generate code")
+	if req.CustomCode != "" {
+		if err := validateCustomCode(req.CustomCode); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		link, err = h.store.CreateLink(r.Context(), code, longURL)
-		if err == nil {
-			break
+		link, err = h.store.CreateLink(r.Context(), req.CustomCode, longURL)
+		if err != nil {
+			if errors.Is(err, store.ErrCodeTaken) {
+				writeError(w, http.StatusConflict, "custom_code is already in use")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "failed to create link")
+			return
 		}
-		if errors.Is(err, store.ErrCodeTaken) {
-			continue // collision on a 7-char random code is rare; just retry
+	} else {
+		for attempt := 0; attempt < maxCreateRetries; attempt++ {
+			code, err := shortener.Generate(codeLength)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to generate code")
+				return
+			}
+			link, err = h.store.CreateLink(r.Context(), code, longURL)
+			if err == nil {
+				break
+			}
+			if errors.Is(err, store.ErrCodeTaken) {
+				continue // collision on a 7-char random code is rare; just retry
+			}
+			writeError(w, http.StatusInternalServerError, "failed to create link")
+			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to create link")
-		return
-	}
-	if link == nil {
-		writeError(w, http.StatusInternalServerError, "could not allocate a unique code, try again")
-		return
+		if link == nil {
+			writeError(w, http.StatusInternalServerError, "could not allocate a unique code, try again")
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, createLinkResponse{
