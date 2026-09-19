@@ -42,6 +42,7 @@ services:
       REDIS_ADDR: redis:6379
       RATE_LIMIT_REQUESTS: 20
       RATE_LIMIT_WINDOW_SECONDS: 60
+      ALLOWED_ORIGIN: http://localhost:5173
     depends_on:
       postgres:
         condition: service_healthy

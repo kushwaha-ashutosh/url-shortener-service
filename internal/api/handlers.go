@@ -45,20 +45,22 @@ func validateCustomCode(code string) error {
 }
 
 type Handler struct {
-	store   *store.Store
-	cache   *cache.Cache
-	clicks  *ClickBatcher
-	limiter *ratelimit.Limiter
-	baseURL string
+	store         *store.Store
+	cache         *cache.Cache
+	clicks        *ClickBatcher
+	limiter       *ratelimit.Limiter
+	baseURL       string
+	allowedOrigin string
 }
 
-func NewHandler(s *store.Store, c *cache.Cache, cb *ClickBatcher, rl *ratelimit.Limiter, baseURL string) *Handler {
-	return &Handler{store: s, cache: c, clicks: cb, limiter: rl, baseURL: baseURL}
+func NewHandler(s *store.Store, c *cache.Cache, cb *ClickBatcher, rl *ratelimit.Limiter, baseURL, allowedOrigin string) *Handler {
+	return &Handler{store: s, cache: c, clicks: cb, limiter: rl, baseURL: baseURL, allowedOrigin: allowedOrigin}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Use(RequestID)
+	r.Use(h.CORS)
 	r.Get("/healthz", h.HealthCheck)
 	r.With(h.RateLimit).Post("/api/links", h.CreateLink)
 	r.Get("/api/links/{code}/stats", h.GetStats)

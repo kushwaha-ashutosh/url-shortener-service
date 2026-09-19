@@ -48,7 +48,7 @@ func main() {
 
 	limiter := ratelimit.New(c.Client(), cfg.RateLimitRequests, cfg.RateLimitWindow)
 
-	handler := api.NewHandler(s, c, batcher, limiter, cfg.BaseURL)
+	handler := api.NewHandler(s, c, batcher, limiter, cfg.BaseURL, cfg.AllowedOrigin)
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: handler.Routes(),
@@ -84,6 +84,7 @@ type config struct {
 	RedisAddr         string
 	RateLimitRequests int
 	RateLimitWindow   time.Duration
+	AllowedOrigin     string
 }
 
 func loadConfig() config {
@@ -94,6 +95,7 @@ func loadConfig() config {
 		RedisAddr:         getEnv("REDIS_ADDR", "localhost:6379"),
 		RateLimitRequests: getEnvInt("RATE_LIMIT_REQUESTS", 20),
 		RateLimitWindow:   time.Duration(getEnvInt("RATE_LIMIT_WINDOW_SECONDS", 60)) * time.Second,
+		AllowedOrigin:     getEnv("ALLOWED_ORIGIN", "http://localhost:5173"),
 	}
 }
 

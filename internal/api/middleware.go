@@ -43,6 +43,26 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// CORS allows the dashboard (served from a different origin during
+// local dev, e.g. Vite on :5173) to call this API from the browser.
+// The API has no auth and no cookies to protect, so a single
+// configurable allowed origin is enough — this isn't guarding
+// anything sensitive, just satisfying the browser's same-origin
+// policy for a fetch() call.
+func (h *Handler) CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", h.allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // RequestID tags every request with an ID — reusing one supplied via
 // X-Request-Id (so a request can be traced across services behind a
 // gateway) or generating one otherwise — echoes it back in the

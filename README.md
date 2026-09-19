@@ -165,6 +165,14 @@ per client, and — via 100 concurrent goroutines racing a limit of
 20 — that the atomic Lua script never admits more than the limit
 under concurrent load).
 
+## Dashboard
+
+A small React + TypeScript dashboard lives in [dashboard/](dashboard) —
+create links, watch their stats (30-day chart, referrers, browsers)
+update live via polling. See [dashboard/README.md](dashboard/README.md)
+for setup; the backend's `ALLOWED_ORIGIN` env var needs to match
+wherever it's served from (defaults to Vite's `:5173`).
+
 ## Load testing
 
 See [loadtest/README.md](loadtest/README.md) — the redirect path holds
@@ -179,7 +187,7 @@ attributed and explained rather than glossed over.
 - [x] Custom short codes
 - [x] Structured logging + request ID middleware
 - [x] Aggregated stats by day/referrer/user-agent, not just a total count
-- [ ] Small React dashboard for link + click stats
+- [x] Small React dashboard for link + click stats
 - [x] Dockerize the app itself
 - [x] CI pipeline (build/vet/test/lint on every push)
 - [ ] Integration-test the store layer against a real Postgres (e.g.
