@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
-import { ApiError, getStats, type Stats } from "../api";
+import { ApiError, getStats, type Link, type Stats } from "../api";
 import { DailyClicksChart } from "./DailyClicksChart";
 import { NamedCountTable } from "./NamedCountTable";
 
 interface Props {
-  code: string;
+  link: Link;
+  onCopy: (link: Link) => void;
 }
 
 const POLL_INTERVAL_MS = 5000;
 
-export function StatsPanel({ code }: Props) {
+export function StatsPanel({ link, onCopy }: Props) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +19,7 @@ export function StatsPanel({ code }: Props) {
 
     async function load() {
       try {
-        const s = await getStats(code);
+        const s = await getStats(link.code);
         if (!cancelled) {
           setStats(s);
           setError(null);
@@ -38,20 +39,50 @@ export function StatsPanel({ code }: Props) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [code]);
+  }, [link.code]);
 
   if (error) {
-    return <p className="error-text">{error}</p>;
+    return (
+      <div className="empty-panel">
+        <p className="error-text">{error}</p>
+      </div>
+    );
   }
   if (!stats) {
-    return <p className="empty-state">Loading stats…</p>;
+    return <StatsSkeleton />;
   }
+
+  const topReferrer = stats.top_referrers?.[0];
+  const topBrowser = stats.top_browsers?.[0];
 
   return (
     <div className="stats-panel">
       <div className="stats-header">
-        <h2>{stats.code}</h2>
-        <span className="total-clicks">{stats.total_clicks} total clicks</span>
+        <div>
+          <h2>{stats.code}</h2>
+          <button type="button" className="short-url-btn" onClick={() => onCopy(link)}>
+            {link.short_url.replace(/^https?:\/\//, "")}
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <rect x="5" y="5" width="9" height="9" rx="1.5" />
+              <path d="M3 10.5V3a1 1 0 0 1 1-1h7.5" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="stat-cards">
+        <div className="stat-card">
+          <span className="stat-card-label">Total clicks</span>
+          <span className="stat-card-value">{stats.total_clicks}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-card-label">Top referrer</span>
+          <span className="stat-card-value stat-card-value-text">{topReferrer?.name ?? "—"}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-card-label">Top browser</span>
+          <span className="stat-card-value stat-card-value-text">{topBrowser?.name ?? "—"}</span>
+        </div>
       </div>
 
       <DailyClicksChart data={stats.clicks_by_day ?? []} />
@@ -60,6 +91,20 @@ export function StatsPanel({ code }: Props) {
         <NamedCountTable title="Top referrers" rows={stats.top_referrers ?? []} />
         <NamedCountTable title="Browsers" rows={stats.top_browsers ?? []} />
       </div>
+    </div>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <div className="stats-panel">
+      <div className="skeleton skeleton-title" />
+      <div className="stat-cards">
+        <div className="skeleton skeleton-card" />
+        <div className="skeleton skeleton-card" />
+        <div className="skeleton skeleton-card" />
+      </div>
+      <div className="skeleton skeleton-chart" />
     </div>
   );
 }

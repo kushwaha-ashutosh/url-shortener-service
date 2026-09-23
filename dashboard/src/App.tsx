@@ -1,18 +1,39 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
 import { CreateLinkForm } from "./components/CreateLinkForm";
 import { LinksList } from "./components/LinksList";
 import { StatsPanel } from "./components/StatsPanel";
+import { ToastStack } from "./components/Toast";
 import { useLocalLinks } from "./useLocalLinks";
+import { useToasts } from "./useToasts";
+import type { Link } from "./api";
 
 function App() {
   const { links, addLink, removeLink } = useLocalLinks();
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const { toasts, push } = useToasts();
+
+  const selectedLink = useMemo(
+    () => links.find((l) => l.code === selectedCode) ?? null,
+    [links, selectedCode]
+  );
+
+  async function copyLink(link: Link) {
+    try {
+      await navigator.clipboard.writeText(link.short_url);
+      push("Copied to clipboard");
+    } catch {
+      push("Couldn't copy — copy it manually", "error");
+    }
+  }
 
   return (
     <div className="app">
       <header>
-        <h1>url-shortener dashboard</h1>
+        <div className="brand">
+          <span className="brand-mark">🔗</span>
+          <h1>url-shortener</h1>
+        </div>
         <p className="subtitle">
           Links created here are remembered in this browser only — the API has no "list all
           links" endpoint by design.
@@ -23,16 +44,19 @@ function App() {
         onCreated={(link) => {
           addLink(link);
           setSelectedCode(link.code);
+          push("Short link created");
         }}
+        onError={(message) => push(message, "error")}
       />
 
       <main className="layout">
         <section className="sidebar">
-          <h2>Your links</h2>
+          <h2>Your links ({links.length})</h2>
           <LinksList
             links={links}
             selectedCode={selectedCode}
             onSelect={setSelectedCode}
+            onCopy={copyLink}
             onRemove={(code) => {
               removeLink(code);
               if (selectedCode === code) setSelectedCode(null);
@@ -41,13 +65,17 @@ function App() {
         </section>
 
         <section className="content">
-          {selectedCode ? (
-            <StatsPanel code={selectedCode} />
+          {selectedLink ? (
+            <StatsPanel key={selectedLink.code} link={selectedLink} onCopy={copyLink} />
           ) : (
-            <p className="empty-state">Select a link to see its stats.</p>
+            <div className="empty-panel content-empty">
+              <p className="empty-state">Select a link to see its stats.</p>
+            </div>
           )}
         </section>
       </main>
+
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

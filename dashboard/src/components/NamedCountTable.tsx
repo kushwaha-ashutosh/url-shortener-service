@@ -6,24 +6,29 @@ interface Props {
 }
 
 export function NamedCountTable({ title, rows }: Props) {
+  const max = Math.max(...rows.map((r) => r.clicks), 1);
+
   return (
     <div className="named-count-table">
       <h3>{title}</h3>
       {rows.length === 0 ? (
         <p className="empty-state">No data yet.</p>
       ) : (
-        <table>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.name}>
-                <td className="name-cell" title={row.name}>
+        <ul className="count-rows">
+          {rows.map((row) => (
+            <li key={row.name}>
+              <div className="count-row-top">
+                <span className="name-cell" title={row.name}>
                   {row.name}
-                </td>
-                <td className="count-cell">{row.clicks}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+                <span className="count-cell">{row.clicks}</span>
+              </div>
+              <div className="count-bar-track">
+                <div className="count-bar-fill" style={{ width: `${(row.clicks / max) * 100}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
