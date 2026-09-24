@@ -40,6 +40,7 @@ func main() {
 		os.Exit(1)
 	}
 	logRedisDNS(cfg.RedisAddr)
+	logRedisTCPDial(cfg.RedisAddr)
 	if err := pingWithRetry(ctx, c, 5, 2*time.Second); err != nil {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
@@ -144,6 +145,52 @@ func logRedisDNS(addrOrURL string) {
 		return
 	}
 	log.Info("resolved redis host", "host", host, "ips", ips)
+}
+
+// redisAddr returns a dialable "host:port" for REDIS_ADDR in either
+// its plain or URL form, defaulting to Redis's conventional 6379 when
+// a URL doesn't specify one explicitly.
+func redisAddr(addrOrURL string) string {
+	if strings.Contains(addrOrURL, "://") {
+		u, err := url.Parse(addrOrURL)
+		if err != nil {
+			return ""
+		}
+		port := u.Port()
+		if port == "" {
+			port = "6379"
+		}
+		return net.JoinHostPort(u.Hostname(), port)
+	}
+	return addrOrURL
+}
+
+// logRedisTCPDial attempts a plain TCP connection to the Redis host —
+// no TLS, no Redis protocol, just "can a socket be opened at all."
+// Added alongside logRedisDNS to isolate where a connection actually
+// fails: DNS resolved fine in production, but the TLS-wrapped
+// connection still failed with a bare "EOF" in under 100ms — too fast
+// to be a timeout, and consistent across two different databases, in
+// a way that pointed away from anything Redis- or TLS-specific and
+// toward the network path itself. This checks that theory directly:
+// if even a bare TCP handshake to port 6379 fails or is refused, the
+// problem is the deploy environment's outbound network on that port,
+// not this application or its TLS setup.
+func logRedisTCPDial(addrOrURL string) {
+	addr := redisAddr(addrOrURL)
+	if addr == "" {
+		log.Warn("could not extract host:port from REDIS_ADDR for TCP dial diagnostics")
+		return
+	}
+	start := time.Now()
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	elapsed := time.Since(start)
+	if err != nil {
+		log.Warn("raw TCP dial to redis host failed", "addr", addr, "elapsed_ms", elapsed.Milliseconds(), "error", err)
+		return
+	}
+	_ = conn.Close()
+	log.Info("raw TCP dial to redis host succeeded", "addr", addr, "elapsed_ms", elapsed.Milliseconds())
 }
 
 type config struct {

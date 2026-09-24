@@ -76,3 +76,25 @@ func TestRedisHost(t *testing.T) {
 		})
 	}
 }
+
+func TestRedisAddr(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"plain host:port", "localhost:6379", "localhost:6379"},
+		{"redis URL with port", "redis://localhost:6380/0", "localhost:6380"},
+		{"rediss URL with auth and port", "rediss://default:secret@generous-mole-295263.upstash.io:6379", "generous-mole-295263.upstash.io:6379"},
+		{"URL without explicit port defaults to 6379", "rediss://default:secret@example.upstash.io", "example.upstash.io:6379"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := redisAddr(tc.input)
+			if got != tc.want {
+				t.Fatalf("redisAddr(%q): got %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
