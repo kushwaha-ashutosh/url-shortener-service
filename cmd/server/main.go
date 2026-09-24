@@ -36,7 +36,7 @@ func main() {
 		log.Error("invalid redis address/URL", "error", err)
 		os.Exit(1)
 	}
-	if err := c.Ping(ctx); err != nil {
+	if err := pingWithRetry(ctx, c, 5, 2*time.Second); err != nil {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
 	}
@@ -79,6 +79,30 @@ func main() {
 	// can drain and flush whatever is left in the buffer.
 	cancelBatcher()
 	time.Sleep(200 * time.Millisecond)
+}
+
+// pingWithRetry retries the startup Redis health check rather than
+// failing on the first attempt. This is a different situation from
+// the deliberately no-retry, fail-fast policy on the redirect hot
+// path (internal/cache, internal/api/handlers.go): retrying a few
+// times before the process has even started serving traffic is the
+// standard "wait for a dependency to become reachable" pattern, not a
+// retry loop hidden inside a live request. Added after a first
+// production deploy to Upstash failed on process startup with a bare
+// "EOF" — the process' own supervisor restarting the whole container
+// on crash is a much cruder recovery path than retrying in-process.
+func pingWithRetry(ctx context.Context, c *cache.Cache, attempts int, delay time.Duration) error {
+	var err error
+	for i := 0; i < attempts; i++ {
+		if err = c.Ping(ctx); err == nil {
+			return nil
+		}
+		log.Warn("redis ping failed, retrying", "attempt", i+1, "of", attempts, "error", err)
+		if i < attempts-1 {
+			time.Sleep(delay)
+		}
+	}
+	return err
 }
 
 type config struct {
