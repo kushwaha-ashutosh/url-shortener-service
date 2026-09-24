@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/kushwaha-ashutosh/url-shortener-service/actions/workflows/ci.yml/badge.svg)](https://github.com/kushwaha-ashutosh/url-shortener-service/actions/workflows/ci.yml)
 
+**Live:** [url-shortener-lq0d.onrender.com](https://url-shortener-lq0d.onrender.com) —
+try it: `POST /api/links` with `{"url": "https://example.com"}`, then
+visit the short link it returns. (Free-tier hosting: the first request
+after a period of inactivity may take a few seconds to wake up.)
+
 A URL shortener built like it might actually need to survive traffic:
 redirects are served from a Redis cache in front of Postgres, and click
 analytics are logged asynchronously so writing an analytics row never
@@ -211,25 +216,62 @@ here's the exact path.
    `REDIS_ADDR`; the app accepts either a plain `host:port` (local
    dev) or a full `redis://`/`rediss://` URL (see
    [internal/cache/redis.go](internal/cache/redis.go)).
+   **Copy it carefully** — see the postmortem below for what happens
+   if you don't.
 
 **3. The app (Render)**
 1. Create a free account at render.com and connect your GitHub account.
 2. New → Blueprint → select this repo. Render reads
    [render.yaml](render.yaml) and creates a free Docker web service
-   from the [Dockerfile](Dockerfile) automatically.
-3. In the service's Environment tab, set the secrets `render.yaml`
-   left blank: `DATABASE_URL` (from Neon), `REDIS_ADDR` (from
-   Upstash — the `rediss://` URL).
+   for the API and a free static site for the dashboard automatically.
+3. On the `url-shortener` web service's Environment tab, set the
+   secrets `render.yaml` left blank: `DATABASE_URL` (from Neon),
+   `REDIS_ADDR` (from Upstash — the `rediss://` URL).
 4. Deploy. Once it's live, Render assigns a URL like
    `https://url-shortener-xxxx.onrender.com` — set that as `BASE_URL`
-   in the same Environment tab and redeploy, so short links the app
-   generates point at itself, not `localhost`.
+   on the same service and redeploy, so short links the app generates
+   point at itself, not `localhost`.
+5. On the `url-shortener-dashboard` static site's Environment tab, set
+   `VITE_API_BASE_URL` to that same API URL, then redeploy the
+   dashboard too.
 
-**Note on the free tier:** the Render free plan sleeps the service
-after inactivity; the first request after a while wakes it back up
-with a several-second delay. Fine for a portfolio demo, not for
-anything latency-sensitive — see [loadtest/README.md](loadtest/README.md)
-for what this service's actual latency looks like when it's warm.
+**Note on the free tier:** the Render free plan sleeps the *web
+service* (the API) after inactivity; the first request after a while
+wakes it back up with a several-second delay. The static site (the
+dashboard) doesn't sleep. Fine for a portfolio demo, not for anything
+latency-sensitive — see [loadtest/README.md](loadtest/README.md) for
+what this service's actual latency looks like when it's warm.
+
+### Postmortem: the first deploy wasn't actually broken
+
+The first real deploy failed on startup with a bare `"EOF"` connecting
+to Redis — repeatedly, identically, across three separately-created
+Upstash databases. Debugged it live, layer by layer, adding one
+targeted diagnostic at a time straight into the running deploy rather
+than guessing: DNS resolution (fine), a raw TCP dial (fine, 1ms), a
+raw TLS handshake bypassing the Redis client entirely (fine — TLS 1.3,
+a real certificate, a genuine cross-cloud handshake), and finally a
+hand-encoded `AUTH` + `PING` exchange over that TLS connection using
+the actual RESP protocol.
+
+That last one returned a completely valid, correctly-formed Redis
+response: `-WRONGPASS invalid username-password pair`. The entire
+investigation — timeout tuning, RESP2/RESP3 protocol forcing, retry
+logic — chased what looked like a network or protocol bug, when the
+real issue was a wrong password in an environment variable the whole
+time. go-redis just never surfaced the actual `WRONGPASS` reason,
+reporting the connection closing after the failed auth as a bare
+`EOF` instead.
+
+Two of those detours turned out to be worth keeping anyway (see their
+code comments for why): the retry-on-startup logic in
+[cmd/server/main.go](cmd/server/main.go), and the client timeout
+tuning in [internal/cache/redis.go](internal/cache/redis.go), which
+were both genuine gaps independent of what actually caused this
+particular failure. The diagnostic code itself — the DNS/TCP/TLS/
+command-exchange probes — was removed once it had done its job; running
+a four-layer network probe on every boot isn't something a working
+service should carry forward.
 
 ## Load testing
 
@@ -252,4 +294,4 @@ attributed and explained rather than glossed over.
       testcontainers-go) — the stats aggregation SQL is currently only
       verified manually, since `internal/store` has no automated tests yet
 - [x] Chaos test: kill Redis mid-load (found and fixed a real 20-30s hang — see [chaos/README.md](chaos/README.md))
-- [ ] Deploy publicly (Render/Neon/Upstash — see "Deploying" above) so the demo link is real
+- [x] Deploy publicly (Render/Neon/Upstash) — [live](https://url-shortener-lq0d.onrender.com), see "Deploying" above and its postmortem

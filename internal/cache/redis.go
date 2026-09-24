@@ -68,17 +68,14 @@ func New(addrOrURL string) (*Cache, error) {
 	opt.MaxRetries = -1 // disabled: a stuck retry loop defeats the point of failing fast
 
 	// go-redis v9 defaults to Protocol 3 (RESP3), sending a HELLO 3
-	// command right after connecting to negotiate it. Found the hard
-	// way in production: TCP and TLS both completed cleanly against
-	// Upstash (confirmed independently, bypassing this client entirely
-	// — see cmd/server/main.go's raw TCP/TLS diagnostics), but every
-	// connection still failed with a bare EOF immediately after the
-	// TLS handshake. That's the signature of a managed/proxied Redis
-	// backend that only understands the older RESP2 protocol and
-	// simply closes the connection on an unrecognized HELLO, rather
-	// than replying with a proper protocol error. Forcing RESP2 (the
-	// traditional AUTH-command flow, universally supported) avoids
-	// sending the HELLO negotiation at all.
+	// command right after connecting to negotiate it. Tried forcing
+	// RESP2 here while chasing a production "EOF on connect" — it
+	// turned out not to be the cause (the real one was a wrong
+	// password, an auth failure the client was surfacing as a bare EOF
+	// rather than the actual WRONGPASS response). Left forced anyway:
+	// RESP2's plain AUTH-command flow has the widest compatibility
+	// across Redis-compatible managed providers/proxies, and there's
+	// no real downside to it for how this client is used here.
 	opt.Protocol = 2
 
 	return &Cache{rdb: redis.NewClient(opt)}, nil

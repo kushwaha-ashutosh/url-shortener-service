@@ -2,19 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
-
-	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/kushwaha-ashutosh/url-shortener/internal/api"
 	"github.com/kushwaha-ashutosh/url-shortener/internal/cache"
@@ -43,10 +36,6 @@ func main() {
 		log.Error("invalid redis address/URL", "error", err)
 		os.Exit(1)
 	}
-	logRedisDNS(cfg.RedisAddr)
-	logRedisTCPDial(cfg.RedisAddr)
-	logRedisTLSHandshake(cfg.RedisAddr)
-	logRedisCommandExchange(cfg.RedisAddr)
 	if err := pingWithRetry(ctx, c, 5, 2*time.Second); err != nil {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
@@ -98,10 +87,7 @@ func main() {
 // path (internal/cache, internal/api/handlers.go): retrying a few
 // times before the process has even started serving traffic is the
 // standard "wait for a dependency to become reachable" pattern, not a
-// retry loop hidden inside a live request. Added after a first
-// production deploy to Upstash failed on process startup with a bare
-// "EOF" — the process' own supervisor restarting the whole container
-// on crash is a much cruder recovery path than retrying in-process.
+// retry loop hidden inside a live request.
 func pingWithRetry(ctx context.Context, c *cache.Cache, attempts int, delay time.Duration) error {
 	var err error
 	for i := 0; i < attempts; i++ {
@@ -114,201 +100,6 @@ func pingWithRetry(ctx context.Context, c *cache.Cache, attempts int, delay time
 		}
 	}
 	return err
-}
-
-// redisHost extracts just the hostname from REDIS_ADDR, which is
-// either a plain "host:port" or a full "redis://"/"rediss://" URL —
-// mirrors the scheme-detection in internal/cache.New so the log line
-// below is diagnosing the same host that cache.New will actually dial.
-func redisHost(addrOrURL string) string {
-	if strings.Contains(addrOrURL, "://") {
-		if u, err := url.Parse(addrOrURL); err == nil {
-			return u.Hostname()
-		}
-		return ""
-	}
-	if h, _, err := net.SplitHostPort(addrOrURL); err == nil {
-		return h
-	}
-	return addrOrURL
-}
-
-// logRedisDNS resolves the Redis host and logs the result before the
-// connection is attempted. Added while diagnosing a production deploy
-// where the app could connect to Postgres but got a bare "EOF" trying
-// to reach Redis: this narrows whether that's a DNS problem specific
-// to the deploy environment (which would show up here as a lookup
-// failure) or something failing later, at the TCP/TLS layer instead.
-func logRedisDNS(addrOrURL string) {
-	host := redisHost(addrOrURL)
-	if host == "" {
-		log.Warn("could not extract a host from REDIS_ADDR for DNS diagnostics")
-		return
-	}
-	ips, err := net.LookupHost(host)
-	if err != nil {
-		log.Warn("redis host DNS lookup failed", "host", host, "error", err)
-		return
-	}
-	log.Info("resolved redis host", "host", host, "ips", ips)
-}
-
-// redisAddr returns a dialable "host:port" for REDIS_ADDR in either
-// its plain or URL form, defaulting to Redis's conventional 6379 when
-// a URL doesn't specify one explicitly.
-func redisAddr(addrOrURL string) string {
-	if strings.Contains(addrOrURL, "://") {
-		u, err := url.Parse(addrOrURL)
-		if err != nil {
-			return ""
-		}
-		port := u.Port()
-		if port == "" {
-			port = "6379"
-		}
-		return net.JoinHostPort(u.Hostname(), port)
-	}
-	return addrOrURL
-}
-
-// logRedisTCPDial attempts a plain TCP connection to the Redis host —
-// no TLS, no Redis protocol, just "can a socket be opened at all."
-// Added alongside logRedisDNS to isolate where a connection actually
-// fails: DNS resolved fine in production, but the TLS-wrapped
-// connection still failed with a bare "EOF" in under 100ms — too fast
-// to be a timeout, and consistent across two different databases, in
-// a way that pointed away from anything Redis- or TLS-specific and
-// toward the network path itself. This checks that theory directly:
-// if even a bare TCP handshake to port 6379 fails or is refused, the
-// problem is the deploy environment's outbound network on that port,
-// not this application or its TLS setup.
-func logRedisTCPDial(addrOrURL string) {
-	addr := redisAddr(addrOrURL)
-	if addr == "" {
-		log.Warn("could not extract host:port from REDIS_ADDR for TCP dial diagnostics")
-		return
-	}
-	start := time.Now()
-	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
-	elapsed := time.Since(start)
-	if err != nil {
-		log.Warn("raw TCP dial to redis host failed", "addr", addr, "elapsed_ms", elapsed.Milliseconds(), "error", err)
-		return
-	}
-	_ = conn.Close()
-	log.Info("raw TCP dial to redis host succeeded", "addr", addr, "elapsed_ms", elapsed.Milliseconds())
-}
-
-// logRedisTLSHandshake performs the TLS handshake directly with Go's
-// crypto/tls, bypassing go-redis's client entirely, so the resulting
-// error isn't whatever go-redis's abstraction normalizes it to. Added
-// because the raw TCP dial above succeeded in ~1ms -- suspiciously
-// fast for a real cross-cloud connection (Render to AWS-hosted
-// Upstash), suggesting the TCP connection may be terminating at some
-// intermediate point in Render's network rather than reaching Upstash
-// at all, with the actual TLS handshake failing beyond that point.
-// This calls tls.DialWithDialer with the same ServerName/MinVersion
-// go-redis's own ParseURL sets for a rediss:// URL, so it exercises
-// the identical handshake go-redis would attempt.
-func logRedisTLSHandshake(addrOrURL string) {
-	addr := redisAddr(addrOrURL)
-	host := redisHost(addrOrURL)
-	if addr == "" || host == "" {
-		return
-	}
-
-	dialer := &net.Dialer{Timeout: 5 * time.Second}
-	start := time.Now()
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
-		ServerName: host,
-		MinVersion: tls.VersionTLS12,
-	})
-	elapsed := time.Since(start)
-	if err != nil {
-		log.Warn("raw TLS handshake to redis host failed", "addr", addr, "elapsed_ms", elapsed.Milliseconds(), "error", err)
-		return
-	}
-	defer func() { _ = conn.Close() }()
-
-	state := conn.ConnectionState()
-	log.Info("raw TLS handshake to redis host succeeded",
-		"addr", addr,
-		"elapsed_ms", elapsed.Milliseconds(),
-		"tls_version", tls.VersionName(state.Version),
-		"cipher_suite", tls.CipherSuiteName(state.CipherSuite),
-	)
-}
-
-// encodeRESPCommand encodes a Redis command using the RESP protocol's
-// array-of-bulk-strings format (the same wire format any real client,
-// including go-redis, sends).
-func encodeRESPCommand(args ...string) []byte {
-	var b strings.Builder
-	fmt.Fprintf(&b, "*%d\r\n", len(args))
-	for _, a := range args {
-		fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(a), a)
-	}
-	return []byte(b.String())
-}
-
-// logRedisCommandExchange goes one step past logRedisTLSHandshake: it
-// actually writes a real Redis command over the established TLS
-// connection and reads the response, using raw crypto/tls rather than
-// go-redis. Added because forcing RESP2 (ruling out a HELLO/RESP3
-// negotiation issue) didn't fix production either -- the failure was
-// still a bare EOF immediately after a successful handshake, for any
-// command, not specifically HELLO. The TLS handshake diagnostic never
-// actually tested whether data could flow after it; this closes that
-// gap by watching exactly where a real AUTH + PING exchange breaks:
-// at the Write, at the Read, or with a real Redis protocol response.
-// Never logs the password itself, only byte counts and the server's
-// replies.
-func logRedisCommandExchange(addrOrURL string) {
-	addr := redisAddr(addrOrURL)
-	host := redisHost(addrOrURL)
-	if addr == "" || host == "" || !strings.Contains(addrOrURL, "://") {
-		return
-	}
-	opt, err := goredis.ParseURL(addrOrURL)
-	if err != nil {
-		return
-	}
-
-	dialer := &net.Dialer{Timeout: 5 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
-		ServerName: host,
-		MinVersion: tls.VersionTLS12,
-	})
-	if err != nil {
-		log.Warn("command-exchange diagnostic: TLS dial failed", "error", err)
-		return
-	}
-	defer func() { _ = conn.Close() }()
-	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
-
-	authCmd := encodeRESPCommand("AUTH", opt.Username, opt.Password)
-	n, err := conn.Write(authCmd)
-	log.Info("command-exchange diagnostic: wrote AUTH", "bytes_written", n, "of", len(authCmd), "write_error", err)
-	if err != nil {
-		return
-	}
-
-	buf := make([]byte, 512)
-	n, err = conn.Read(buf)
-	log.Info("command-exchange diagnostic: read AUTH response", "bytes_read", n, "response", string(buf[:n]), "read_error", err)
-	if err != nil {
-		return
-	}
-
-	pingCmd := encodeRESPCommand("PING")
-	n, err = conn.Write(pingCmd)
-	log.Info("command-exchange diagnostic: wrote PING", "bytes_written", n, "write_error", err)
-	if err != nil {
-		return
-	}
-
-	n, err = conn.Read(buf)
-	log.Info("command-exchange diagnostic: read PING response", "bytes_read", n, "response", string(buf[:n]), "read_error", err)
 }
 
 type config struct {

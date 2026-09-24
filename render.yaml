@@ -1,4 +1,5 @@
-# Render Blueprint — deploys the app as a Docker web service.
+# Render Blueprint — deploys the API as a Docker web service and the
+# dashboard as a free static site.
 # Postgres and Redis are NOT defined here: this project uses external
 # managed free tiers (Neon for Postgres, Upstash for Redis) instead of
 # Render's own database services, so DATABASE_URL and REDIS_ADDR are
@@ -26,3 +27,13 @@ services:
         value: "60"
       - key: ALLOWED_ORIGIN
         value: "*" # the API has no auth/cookies to protect; see internal/api/middleware.go
+
+  # Static sites are always free on Render — no plan field needed.
+  - type: static
+    name: url-shortener-dashboard
+    rootDir: dashboard
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false # set to the "url-shortener" web service's URL above
