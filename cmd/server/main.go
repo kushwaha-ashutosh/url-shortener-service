@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,6 +42,7 @@ func main() {
 	}
 	logRedisDNS(cfg.RedisAddr)
 	logRedisTCPDial(cfg.RedisAddr)
+	logRedisTLSHandshake(cfg.RedisAddr)
 	if err := pingWithRetry(ctx, c, 5, 2*time.Second); err != nil {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
@@ -191,6 +193,46 @@ func logRedisTCPDial(addrOrURL string) {
 	}
 	_ = conn.Close()
 	log.Info("raw TCP dial to redis host succeeded", "addr", addr, "elapsed_ms", elapsed.Milliseconds())
+}
+
+// logRedisTLSHandshake performs the TLS handshake directly with Go's
+// crypto/tls, bypassing go-redis's client entirely, so the resulting
+// error isn't whatever go-redis's abstraction normalizes it to. Added
+// because the raw TCP dial above succeeded in ~1ms -- suspiciously
+// fast for a real cross-cloud connection (Render to AWS-hosted
+// Upstash), suggesting the TCP connection may be terminating at some
+// intermediate point in Render's network rather than reaching Upstash
+// at all, with the actual TLS handshake failing beyond that point.
+// This calls tls.DialWithDialer with the same ServerName/MinVersion
+// go-redis's own ParseURL sets for a rediss:// URL, so it exercises
+// the identical handshake go-redis would attempt.
+func logRedisTLSHandshake(addrOrURL string) {
+	addr := redisAddr(addrOrURL)
+	host := redisHost(addrOrURL)
+	if addr == "" || host == "" {
+		return
+	}
+
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	start := time.Now()
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+		ServerName: host,
+		MinVersion: tls.VersionTLS12,
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		log.Warn("raw TLS handshake to redis host failed", "addr", addr, "elapsed_ms", elapsed.Milliseconds(), "error", err)
+		return
+	}
+	defer func() { _ = conn.Close() }()
+
+	state := conn.ConnectionState()
+	log.Info("raw TLS handshake to redis host succeeded",
+		"addr", addr,
+		"elapsed_ms", elapsed.Milliseconds(),
+		"tls_version", tls.VersionName(state.Version),
+		"cipher_suite", tls.CipherSuiteName(state.CipherSuite),
+	)
 }
 
 type config struct {
