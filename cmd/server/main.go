@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,6 +39,7 @@ func main() {
 		log.Error("invalid redis address/URL", "error", err)
 		os.Exit(1)
 	}
+	logRedisDNS(cfg.RedisAddr)
 	if err := pingWithRetry(ctx, c, 5, 2*time.Second); err != nil {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
@@ -103,6 +107,43 @@ func pingWithRetry(ctx context.Context, c *cache.Cache, attempts int, delay time
 		}
 	}
 	return err
+}
+
+// redisHost extracts just the hostname from REDIS_ADDR, which is
+// either a plain "host:port" or a full "redis://"/"rediss://" URL —
+// mirrors the scheme-detection in internal/cache.New so the log line
+// below is diagnosing the same host that cache.New will actually dial.
+func redisHost(addrOrURL string) string {
+	if strings.Contains(addrOrURL, "://") {
+		if u, err := url.Parse(addrOrURL); err == nil {
+			return u.Hostname()
+		}
+		return ""
+	}
+	if h, _, err := net.SplitHostPort(addrOrURL); err == nil {
+		return h
+	}
+	return addrOrURL
+}
+
+// logRedisDNS resolves the Redis host and logs the result before the
+// connection is attempted. Added while diagnosing a production deploy
+// where the app could connect to Postgres but got a bare "EOF" trying
+// to reach Redis: this narrows whether that's a DNS problem specific
+// to the deploy environment (which would show up here as a lookup
+// failure) or something failing later, at the TCP/TLS layer instead.
+func logRedisDNS(addrOrURL string) {
+	host := redisHost(addrOrURL)
+	if host == "" {
+		log.Warn("could not extract a host from REDIS_ADDR for DNS diagnostics")
+		return
+	}
+	ips, err := net.LookupHost(host)
+	if err != nil {
+		log.Warn("redis host DNS lookup failed", "host", host, "error", err)
+		return
+	}
+	log.Info("resolved redis host", "host", host, "ips", ips)
 }
 
 type config struct {

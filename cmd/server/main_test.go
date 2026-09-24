@@ -55,3 +55,24 @@ func TestPingWithRetry_RetriesThenFailsWhenUnreachable(t *testing.T) {
 		t.Fatalf("expected at least %d retries (>= %v elapsed), got %v", attempts, minExpected, elapsed)
 	}
 }
+
+func TestRedisHost(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"plain host:port", "localhost:6379", "localhost"},
+		{"redis URL", "redis://localhost:6379/0", "localhost"},
+		{"rediss URL with auth", "rediss://default:secret@generous-mole-295263.upstash.io:6379", "generous-mole-295263.upstash.io"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := redisHost(tc.input)
+			if got != tc.want {
+				t.Fatalf("redisHost(%q): got %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
