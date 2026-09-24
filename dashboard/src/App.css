@@ -21,9 +21,10 @@ header {
 }
 
 header h1 {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   background: linear-gradient(100deg, var(--coral) 10%, var(--pink) 45%, var(--violet) 90%);
   -webkit-background-clip: text;
   background-clip: text;

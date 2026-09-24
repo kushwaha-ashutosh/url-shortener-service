@@ -37,8 +37,8 @@ function App() {
           <h1>url-shortener</h1>
         </div>
         <p className="subtitle">
-          Links created here are remembered in this browser only — the API has no "list all
-          links" endpoint by design.
+          Shorten any link, watch clicks roll in live, and share a scannable QR code — all in
+          one place.
         </p>
       </header>
 
