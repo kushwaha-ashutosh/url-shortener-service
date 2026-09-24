@@ -60,3 +60,7 @@ export async function getStats(code: string): Promise<Stats> {
   }
   return res.json();
 }
+
+export function qrCodeUrl(code: string): string {
+  return `${API_BASE}/${code}/qr`;
+}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	qrcode "github.com/skip2/go-qrcode"
 
 	"github.com/kushwaha-ashutosh/url-shortener/internal/cache"
 	"github.com/kushwaha-ashutosh/url-shortener/internal/logging"
@@ -64,6 +65,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/healthz", h.HealthCheck)
 	r.With(h.RateLimit).Post("/api/links", h.CreateLink)
 	r.Get("/api/links/{code}/stats", h.GetStats)
+	r.Get("/{code}/qr", h.GetQRCode)
 	r.Get("/{code}", h.Redirect)
 	return r
 }
@@ -140,9 +142,13 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusCreated, createLinkResponse{
 		Code:     link.Code,
-		ShortURL: h.baseURL + "/" + link.Code,
+		ShortURL: shortURLFor(h.baseURL, link.Code),
 		LongURL:  link.LongURL,
 	})
+}
+
+func shortURLFor(baseURL, code string) string {
+	return baseURL + "/" + code
 }
 
 // cacheCallTimeout bounds each Redis call from the redirect hot path
@@ -247,6 +253,40 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+const qrCodeSizePixels = 256
+
+// GetQRCode returns a PNG QR code encoding the link's short URL — the
+// same thing a physical flyer or business card would need, generated
+// server-side so the result is a stable, shareable image URL rather
+// than something that only exists while a client-side script renders
+// it. Deterministic per code, so it's safe for the browser to cache.
+func (h *Handler) GetQRCode(w http.ResponseWriter, r *http.Request) {
+	code := chi.URLParam(r, "code")
+	ctx := r.Context()
+
+	if _, err := h.store.GetLink(ctx, code); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "short link not found")
+			return
+		}
+		logging.From(ctx).Error("failed to look up link for QR code", "code", code, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to generate QR code")
+		return
+	}
+
+	png, err := qrcode.Encode(shortURLFor(h.baseURL, code), qrcode.Medium, qrCodeSizePixels)
+	if err != nil {
+		logging.From(ctx).Error("failed to encode QR code", "code", code, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to generate QR code")
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(png)
 }
 
 // normalizeURL rejects empty input and non-http(s) schemes so the

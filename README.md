@@ -57,6 +57,12 @@ adds latency to a redirect.
   ride) running as a non-root user — `docker compose up -d --build` is
   a genuine one-command demo, not "clone this and configure five things
   first."
+- **QR codes generated server-side.** `GET /:code/qr` returns a PNG QR
+  code encoding the short URL, generated on the backend rather than in
+  the browser — the result is a stable, cacheable image URL that works
+  the same whether it's loaded in the dashboard or embedded directly
+  in a flyer, not something that only exists while a client-side
+  script is running.
 
 ## Architecture
 
@@ -130,6 +136,12 @@ Follow it (and generate a click event):
 
 ```bash
 curl -iL localhost:8081/<code>
+```
+
+Get its QR code:
+
+```bash
+curl localhost:8081/<code>/qr -o qr.png
 ```
 
 Check stats (total, a 30-day daily series, top referrers, and a

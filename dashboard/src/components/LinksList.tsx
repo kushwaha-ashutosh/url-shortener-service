@@ -6,9 +6,10 @@ interface Props {
   onSelect: (code: string) => void;
   onRemove: (code: string) => void;
   onCopy: (link: Link) => void;
+  onShowQR: (link: Link) => void;
 }
 
-export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy }: Props) {
+export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy, onShowQR }: Props) {
   if (links.length === 0) {
     return (
       <div className="empty-panel">
@@ -32,6 +33,22 @@ export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy }: P
             </span>
           </div>
           <div className="link-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              title="Show QR code"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowQR(link);
+              }}
+            >
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4">
+                <rect x="2" y="2" width="5" height="5" rx="0.5" />
+                <rect x="9" y="2" width="5" height="5" rx="0.5" />
+                <rect x="2" y="9" width="5" height="5" rx="0.5" />
+                <path d="M9.5 9.5h2M12.5 9.5h1.5M9.5 12.5h1.5M9.5 14h1M12.5 12v2h1.5v-2z" strokeLinecap="round" />
+              </svg>
+            </button>
             <button
               type="button"
               className="icon-btn"

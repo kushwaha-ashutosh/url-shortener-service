@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import "./App.css";
 import { CreateLinkForm } from "./components/CreateLinkForm";
 import { LinksList } from "./components/LinksList";
+import { QRModal } from "./components/QRModal";
 import { StatsPanel } from "./components/StatsPanel";
 import { ToastStack } from "./components/Toast";
 import { useLocalLinks } from "./useLocalLinks";
@@ -11,6 +12,7 @@ import type { Link } from "./api";
 function App() {
   const { links, addLink, removeLink } = useLocalLinks();
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const [qrLink, setQrLink] = useState<Link | null>(null);
   const { toasts, push } = useToasts();
 
   const selectedLink = useMemo(
@@ -57,6 +59,7 @@ function App() {
             selectedCode={selectedCode}
             onSelect={setSelectedCode}
             onCopy={copyLink}
+            onShowQR={setQrLink}
             onRemove={(code) => {
               removeLink(code);
               if (selectedCode === code) setSelectedCode(null);
@@ -66,7 +69,12 @@ function App() {
 
         <section className="content">
           {selectedLink ? (
-            <StatsPanel key={selectedLink.code} link={selectedLink} onCopy={copyLink} />
+            <StatsPanel
+              key={selectedLink.code}
+              link={selectedLink}
+              onCopy={copyLink}
+              onShowQR={setQrLink}
+            />
           ) : (
             <div className="empty-panel content-empty">
               <p className="empty-state">Select a link to see its stats.</p>
@@ -74,6 +82,14 @@ function App() {
           )}
         </section>
       </main>
+
+      {qrLink && (
+        <QRModal
+          link={qrLink}
+          onClose={() => setQrLink(null)}
+          onError={(message) => push(message, "error")}
+        />
+      )}
 
       <ToastStack toasts={toasts} />
     </div>

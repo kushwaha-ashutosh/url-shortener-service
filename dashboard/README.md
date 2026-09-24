@@ -9,15 +9,19 @@ watching their stats update live.
 - See your created links in a list, kept in `localStorage` — the API
   has no "list all links" endpoint by design, so this list is a
   per-browser convenience, not backend state
-- Select a link to see its stats: a 30-day clicks-per-day bar chart,
-  top referrers, and browser breakdown, polling the API every 5s so
-  new clicks (which the backend batches asynchronously — see the root
-  README) show up without a manual refresh
+- Select a link to see its stats: a 30-day clicks-per-day bar chart
+  (hover a bar for an exact count), top referrers, and browser
+  breakdown, polling the API every 5s so new clicks (which the backend
+  batches asynchronously — see the root README) show up without a
+  manual refresh
+- View or download a link's QR code (generated server-side by the
+  backend, so it's a real, cacheable image, not something rendered
+  only in this page)
 
-No charting library — the bar chart is ~30 lines of hand-rolled SVG.
-Worth revisiting once this needs more than one chart type, axes, or
-tooltips beyond a native `<title>`; not worth it for a fixed set of
-bars today.
+No charting library — the bar chart is ~30 lines of hand-rolled SVG
+with a custom hover tooltip. Worth revisiting once this needs more
+than one chart type or axes beyond two labels; not worth it for a
+fixed set of bars today.
 
 ## Running it
 

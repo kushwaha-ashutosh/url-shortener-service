@@ -6,11 +6,12 @@ import { NamedCountTable } from "./NamedCountTable";
 interface Props {
   link: Link;
   onCopy: (link: Link) => void;
+  onShowQR: (link: Link) => void;
 }
 
 const POLL_INTERVAL_MS = 5000;
 
-export function StatsPanel({ link, onCopy }: Props) {
+export function StatsPanel({ link, onCopy, onShowQR }: Props) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,13 +61,23 @@ export function StatsPanel({ link, onCopy }: Props) {
       <div className="stats-header">
         <div>
           <h2>{stats.code}</h2>
-          <button type="button" className="short-url-btn" onClick={() => onCopy(link)}>
-            {link.short_url.replace(/^https?:\/\//, "")}
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <rect x="5" y="5" width="9" height="9" rx="1.5" />
-              <path d="M3 10.5V3a1 1 0 0 1 1-1h7.5" />
-            </svg>
-          </button>
+          <div className="short-url-row">
+            <button type="button" className="short-url-btn" onClick={() => onCopy(link)}>
+              {link.short_url.replace(/^https?:\/\//, "")}
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
+                <rect x="5" y="5" width="9" height="9" rx="1.5" />
+                <path d="M3 10.5V3a1 1 0 0 1 1-1h7.5" />
+              </svg>
+            </button>
+            <button type="button" className="qr-btn" onClick={() => onShowQR(link)}>
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
+                <rect x="2" y="2" width="5" height="5" rx="0.5" />
+                <rect x="9" y="2" width="5" height="5" rx="0.5" />
+                <rect x="2" y="9" width="5" height="5" rx="0.5" />
+              </svg>
+              QR code
+            </button>
+          </div>
         </div>
       </div>
 

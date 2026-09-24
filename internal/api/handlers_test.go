@@ -60,3 +60,11 @@ func TestValidateCustomCode(t *testing.T) {
 		})
 	}
 }
+
+func TestShortURLFor(t *testing.T) {
+	got := shortURLFor("http://localhost:8081", "abc123")
+	want := "http://localhost:8081/abc123"
+	if got != want {
+		t.Fatalf("shortURLFor: got %q, want %q", got, want)
+	}
+}
