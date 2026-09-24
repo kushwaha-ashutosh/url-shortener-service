@@ -1,17 +1,31 @@
 :root {
-  --text: #3f3d45;
-  --text-h: #08060d;
-  --bg: #fff;
-  --bg-subtle: #f7f6f9;
-  --border: #e5e4e7;
-  --accent: #6d28d9;
-  --accent-bg: rgba(109, 40, 217, 0.08);
-  --danger: #dc2626;
+  --text: #3f3d56;
+  --text-h: #1a1a2e;
+  --bg: #fefbf6;
+  --bg-subtle: #f5f2ea;
+  --border: #ece7db;
 
-  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* A playful multi-color palette instead of one monochrome accent —
+     each hue below is used for a specific purpose (brand, a stat
+     card, a data series) so color itself carries meaning. */
+  --coral: #ff6b6b;
+  --coral-soft: #fff0ee;
+  --teal: #0ca678;
+  --teal-soft: #e3fcef;
+  --violet: #7c5cff;
+  --violet-soft: #f2efff;
+  --amber: #f59f00;
+  --amber-soft: #fff6e0;
+  --pink: #f06595;
 
-  font: 15px/1.5 var(--sans);
+  --accent: var(--coral);
+  --accent-bg: var(--coral-soft);
+  --danger: #e03131;
+
+  --sans: "Nunito", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  font: 15px/1.55 var(--sans);
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -23,14 +37,25 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #d1d0d6;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --bg-subtle: #1c1d24;
-    --border: #2e303a;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.12);
-    --danger: #f87171;
+    --text: #d8d6e8;
+    --text-h: #f5f4fb;
+    --bg: #16151f;
+    --bg-subtle: #1e1d29;
+    --border: #322f42;
+
+    --coral: #ff8787;
+    --coral-soft: rgba(255, 107, 107, 0.14);
+    --teal: #38d9a9;
+    --teal-soft: rgba(12, 166, 120, 0.16);
+    --violet: #9775fa;
+    --violet-soft: rgba(124, 92, 255, 0.16);
+    --amber: #ffc94d;
+    --amber-soft: rgba(245, 159, 0, 0.14);
+    --pink: #f783ac;
+
+    --accent: var(--coral);
+    --accent-bg: var(--coral-soft);
+    --danger: #ff8787;
   }
 }
 
@@ -46,7 +71,7 @@ h1,
 h2,
 h3 {
   font-family: var(--sans);
-  font-weight: 600;
+  font-weight: 800;
   color: var(--text-h);
   margin: 0;
 }

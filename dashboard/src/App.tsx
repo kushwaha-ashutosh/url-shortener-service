@@ -77,6 +77,7 @@ function App() {
             />
           ) : (
             <div className="empty-panel content-empty">
+              <span className="empty-panel-icon">📊</span>
               <p className="empty-state">Select a link to see its stats.</p>
             </div>
           )}

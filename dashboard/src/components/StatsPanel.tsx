@@ -45,6 +45,7 @@ export function StatsPanel({ link, onCopy, onShowQR }: Props) {
   if (error) {
     return (
       <div className="empty-panel">
+        <span className="empty-panel-icon">⚠️</span>
         <p className="error-text">{error}</p>
       </div>
     );
@@ -82,15 +83,18 @@ export function StatsPanel({ link, onCopy, onShowQR }: Props) {
       </div>
 
       <div className="stat-cards">
-        <div className="stat-card">
+        <div className="stat-card stat-card-clicks">
+          <span className="stat-card-icon">🖱️</span>
           <span className="stat-card-label">Total clicks</span>
           <span className="stat-card-value">{stats.total_clicks}</span>
         </div>
-        <div className="stat-card">
+        <div className="stat-card stat-card-referrer">
+          <span className="stat-card-icon">🔗</span>
           <span className="stat-card-label">Top referrer</span>
           <span className="stat-card-value stat-card-value-text">{topReferrer?.name ?? "—"}</span>
         </div>
-        <div className="stat-card">
+        <div className="stat-card stat-card-browser">
+          <span className="stat-card-icon">🌐</span>
           <span className="stat-card-label">Top browser</span>
           <span className="stat-card-value stat-card-value-text">{topBrowser?.name ?? "—"}</span>
         </div>

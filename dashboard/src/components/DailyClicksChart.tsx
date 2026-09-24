@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { DailyClicks } from "../api";
 
 interface Props {
@@ -16,6 +16,7 @@ const GRID_LINES = 4;
 // multiple series, or more chart types than one.
 export function DailyClicksChart({ data }: Props) {
   const [hovered, setHovered] = useState<number | null>(null);
+  const gradientId = `barGradient-${useId()}`;
 
   if (data.length === 0) {
     return (
@@ -39,6 +40,13 @@ export function DailyClicksChart({ data }: Props) {
         aria-label="Clicks per day"
         onMouseLeave={() => setHovered(null)}
       >
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stopColor="var(--coral)" />
+            <stop offset="100%" stopColor="var(--pink)" />
+          </linearGradient>
+        </defs>
+
         {Array.from({ length: GRID_LINES + 1 }).map((_, i) => {
           const y = (plotHeight / GRID_LINES) * i;
           return <line key={i} x1={0} x2={WIDTH} y1={y} y2={y} className="grid-line" />;
@@ -62,6 +70,7 @@ export function DailyClicksChart({ data }: Props) {
                 width={barWidth}
                 height={Math.max(barHeight, d.clicks > 0 ? 2 : 0)}
                 rx={2}
+                fill={`url(#${gradientId})`}
                 className={`bar ${isHovered ? "bar-hovered" : ""}`}
               />
             </g>

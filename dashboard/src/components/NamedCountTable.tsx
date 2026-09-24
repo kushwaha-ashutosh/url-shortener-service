@@ -1,4 +1,5 @@
 import type { NamedCount } from "../api";
+import { colorForIndex } from "../palette";
 
 interface Props {
   title: string;
@@ -15,7 +16,7 @@ export function NamedCountTable({ title, rows }: Props) {
         <p className="empty-state">No data yet.</p>
       ) : (
         <ul className="count-rows">
-          {rows.map((row) => (
+          {rows.map((row, i) => (
             <li key={row.name}>
               <div className="count-row-top">
                 <span className="name-cell" title={row.name}>
@@ -24,7 +25,13 @@ export function NamedCountTable({ title, rows }: Props) {
                 <span className="count-cell">{row.clicks}</span>
               </div>
               <div className="count-bar-track">
-                <div className="count-bar-fill" style={{ width: `${(row.clicks / max) * 100}%` }} />
+                <div
+                  className="count-bar-fill"
+                  style={{
+                    width: `${(row.clicks / max) * 100}%`,
+                    ["--bar-color" as string]: colorForIndex(i),
+                  }}
+                />
               </div>
             </li>
           ))}

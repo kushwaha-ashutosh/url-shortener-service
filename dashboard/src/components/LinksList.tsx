@@ -1,4 +1,5 @@
 import type { Link } from "../api";
+import { colorForIndex } from "../palette";
 
 interface Props {
   links: Link[];
@@ -13,6 +14,7 @@ export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy, onS
   if (links.length === 0) {
     return (
       <div className="empty-panel">
+        <span className="empty-panel-icon">🔗</span>
         <p className="empty-state">No links yet — create one above to get started.</p>
       </div>
     );
@@ -20,10 +22,11 @@ export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy, onS
 
   return (
     <ul className="links-list">
-      {links.map((link) => (
+      {links.map((link, i) => (
         <li
           key={link.code}
           className={link.code === selectedCode ? "selected" : ""}
+          style={{ ["--item-color" as string]: colorForIndex(i) }}
           onClick={() => onSelect(link.code)}
         >
           <div className="link-info">
