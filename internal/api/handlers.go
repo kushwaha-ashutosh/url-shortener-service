@@ -160,7 +160,18 @@ func shortURLFor(baseURL, code string) string {
 // fully bounded by DialTimeout on its own. A context deadline enforced
 // at the call site is bounded by Go's context cancellation regardless
 // of what the client does internally to acquire a connection.
-const cacheCallTimeout = 300 * time.Millisecond
+//
+// 750ms rather than the original 300ms: that number was tuned against
+// local Docker Compose latency (sub-millisecond), which doesn't
+// represent a real cross-region call to a managed Redis provider in
+// production. Loosened alongside the same fix to internal/cache's
+// client-level timeouts (see that file's comment for the deploy
+// failure that surfaced this) as a precaution against the same
+// mistake here: a bound tight enough to silently turn every cache
+// lookup into a fall-through-to-Postgres miss, without ever erroring
+// loudly enough to notice. Still far tighter than the original
+// unbounded-effectively 20-30s failure mode this exists to prevent.
+const cacheCallTimeout = 750 * time.Millisecond
 
 func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")

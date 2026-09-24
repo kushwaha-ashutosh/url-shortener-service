@@ -16,18 +16,31 @@ var ErrMiss = errors.New("cache miss")
 
 const linkTTL = 24 * time.Hour
 
-// Tight timeouts and no retries: Redis sits on the redirect hot path as
-// an optional accelerator, with Postgres as the real source of truth.
-// go-redis's defaults (5s dial / 3s read+write, 3 retries with backoff)
+// No retries, and client-level timeouts loose enough for a real
+// cross-region TLS connection (Render talking to Upstash over the
+// public internet), but still bounded rather than left at go-redis's
+// defaults (5s dial / 3s read+write, 3 retries with backoff), which
 // let a single request hang for 20-30+ seconds when Redis is down
 // before the cache-aside fallback ever gets a chance to run — found by
-// actually killing Redis under load rather than trusting the fallback
-// existed on paper. Fail fast instead, so a Redis outage costs a bounded
-// ~750ms worst case, not tens of seconds, before falling through.
+// killing Redis under load in local Docker Compose testing.
+//
+// That local test tuned these down to 250ms, which then broke the
+// very first production deploy: Render-to-Upstash's TLS handshake
+// over real internet latency took longer than 250ms and got cut off
+// mid-handshake, surfacing as a bare "EOF" rather than a timeout.
+// Sub-millisecond LAN latency and real cross-region latency are not
+// the same thing, and tuning against only the former missed it.
+//
+// The tighter, request-scoped bound that actually matters for the
+// chaos-tested "Redis is down" scenario lives at the call site
+// instead — see cacheCallTimeout in internal/api/handlers.go, which
+// wraps each Redis call on the redirect hot path in its own shorter
+// context deadline. These client-level timeouts just need to be loose
+// enough not to break a legitimately slow-but-working connection.
 const (
-	dialTimeout  = 250 * time.Millisecond
-	readTimeout  = 250 * time.Millisecond
-	writeTimeout = 250 * time.Millisecond
+	dialTimeout  = 2 * time.Second
+	readTimeout  = 1 * time.Second
+	writeTimeout = 1 * time.Second
 )
 
 type Cache struct {
