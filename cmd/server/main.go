@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/kushwaha-ashutosh/url-shortener/internal/api"
 	"github.com/kushwaha-ashutosh/url-shortener/internal/cache"
@@ -43,6 +46,7 @@ func main() {
 	logRedisDNS(cfg.RedisAddr)
 	logRedisTCPDial(cfg.RedisAddr)
 	logRedisTLSHandshake(cfg.RedisAddr)
+	logRedisCommandExchange(cfg.RedisAddr)
 	if err := pingWithRetry(ctx, c, 5, 2*time.Second); err != nil {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
@@ -233,6 +237,78 @@ func logRedisTLSHandshake(addrOrURL string) {
 		"tls_version", tls.VersionName(state.Version),
 		"cipher_suite", tls.CipherSuiteName(state.CipherSuite),
 	)
+}
+
+// encodeRESPCommand encodes a Redis command using the RESP protocol's
+// array-of-bulk-strings format (the same wire format any real client,
+// including go-redis, sends).
+func encodeRESPCommand(args ...string) []byte {
+	var b strings.Builder
+	fmt.Fprintf(&b, "*%d\r\n", len(args))
+	for _, a := range args {
+		fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(a), a)
+	}
+	return []byte(b.String())
+}
+
+// logRedisCommandExchange goes one step past logRedisTLSHandshake: it
+// actually writes a real Redis command over the established TLS
+// connection and reads the response, using raw crypto/tls rather than
+// go-redis. Added because forcing RESP2 (ruling out a HELLO/RESP3
+// negotiation issue) didn't fix production either -- the failure was
+// still a bare EOF immediately after a successful handshake, for any
+// command, not specifically HELLO. The TLS handshake diagnostic never
+// actually tested whether data could flow after it; this closes that
+// gap by watching exactly where a real AUTH + PING exchange breaks:
+// at the Write, at the Read, or with a real Redis protocol response.
+// Never logs the password itself, only byte counts and the server's
+// replies.
+func logRedisCommandExchange(addrOrURL string) {
+	addr := redisAddr(addrOrURL)
+	host := redisHost(addrOrURL)
+	if addr == "" || host == "" || !strings.Contains(addrOrURL, "://") {
+		return
+	}
+	opt, err := goredis.ParseURL(addrOrURL)
+	if err != nil {
+		return
+	}
+
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+		ServerName: host,
+		MinVersion: tls.VersionTLS12,
+	})
+	if err != nil {
+		log.Warn("command-exchange diagnostic: TLS dial failed", "error", err)
+		return
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	authCmd := encodeRESPCommand("AUTH", opt.Username, opt.Password)
+	n, err := conn.Write(authCmd)
+	log.Info("command-exchange diagnostic: wrote AUTH", "bytes_written", n, "of", len(authCmd), "write_error", err)
+	if err != nil {
+		return
+	}
+
+	buf := make([]byte, 512)
+	n, err = conn.Read(buf)
+	log.Info("command-exchange diagnostic: read AUTH response", "bytes_read", n, "response", string(buf[:n]), "read_error", err)
+	if err != nil {
+		return
+	}
+
+	pingCmd := encodeRESPCommand("PING")
+	n, err = conn.Write(pingCmd)
+	log.Info("command-exchange diagnostic: wrote PING", "bytes_written", n, "write_error", err)
+	if err != nil {
+		return
+	}
+
+	n, err = conn.Read(buf)
+	log.Info("command-exchange diagnostic: read PING response", "bytes_read", n, "response", string(buf[:n]), "read_error", err)
 }
 
 type config struct {
