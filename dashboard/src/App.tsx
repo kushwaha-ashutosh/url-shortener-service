@@ -1,26 +1,33 @@
 import { useMemo, useState } from "react";
 import "./App.css";
+import { AggregateStatsPanel } from "./components/AggregateStatsPanel";
 import { CreateLinkForm } from "./components/CreateLinkForm";
 import { LinksList } from "./components/LinksList";
 import { QRModal } from "./components/QRModal";
 import { StatsPanel } from "./components/StatsPanel";
 import { ToastStack } from "./components/Toast";
-import { useLocalLinks } from "./useLocalLinks";
+import { useLocalLinks, type StoredLink } from "./useLocalLinks";
 import { useToasts } from "./useToasts";
-import type { Link } from "./api";
+
+// The content pane shows one of: the "All links" aggregate, the
+// "Favourites" aggregate, or one specific link's stats. The two
+// aggregate views aren't real link codes, so sentinel strings pick
+// them out from a real `selection` that's otherwise always a code.
+const VIEW_ALL = "__all__";
+const VIEW_FAVORITES = "__favorites__";
 
 function App() {
-  const { links, addLink, removeLink } = useLocalLinks();
-  const [selectedCode, setSelectedCode] = useState<string | null>(null);
-  const [qrLink, setQrLink] = useState<Link | null>(null);
+  const { links, addLink, removeLink, toggleFavorite } = useLocalLinks();
+  // Defaults to the aggregate view rather than an empty "select a
+  // link" placeholder, so there's always something to look at.
+  const [selection, setSelection] = useState<string>(VIEW_ALL);
+  const [qrLink, setQrLink] = useState<StoredLink | null>(null);
   const { toasts, push } = useToasts();
 
-  const selectedLink = useMemo(
-    () => links.find((l) => l.code === selectedCode) ?? null,
-    [links, selectedCode]
-  );
+  const favoriteLinks = useMemo(() => links.filter((l) => l.favorite), [links]);
+  const selectedLink = useMemo(() => links.find((l) => l.code === selection) ?? null, [links, selection]);
 
-  async function copyLink(link: Link) {
+  async function copyLink(link: StoredLink) {
     try {
       await navigator.clipboard.writeText(link.short_url);
       push("Copied to clipboard");
@@ -45,7 +52,7 @@ function App() {
       <CreateLinkForm
         onCreated={(link) => {
           addLink(link);
-          setSelectedCode(link.code);
+          setSelection(link.code);
           push("Short link created");
         }}
         onError={(message) => push(message, "error")}
@@ -53,33 +60,57 @@ function App() {
 
       <main className="layout">
         <section className="sidebar">
+          <div className="view-tabs">
+            <button
+              type="button"
+              className={`view-tab ${selection === VIEW_ALL ? "active" : ""}`}
+              onClick={() => setSelection(VIEW_ALL)}
+            >
+              🔗 All links
+            </button>
+            <button
+              type="button"
+              className={`view-tab ${selection === VIEW_FAVORITES ? "active" : ""}`}
+              onClick={() => setSelection(VIEW_FAVORITES)}
+            >
+              ⭐ Favourites
+            </button>
+          </div>
+
           <h2>Your links ({links.length})</h2>
           <LinksList
             links={links}
-            selectedCode={selectedCode}
-            onSelect={setSelectedCode}
+            selectedCode={selection}
+            onSelect={setSelection}
             onCopy={copyLink}
             onShowQR={setQrLink}
+            onToggleFavorite={toggleFavorite}
             onRemove={(code) => {
               removeLink(code);
-              if (selectedCode === code) setSelectedCode(null);
+              if (selection === code) setSelection(VIEW_ALL);
             }}
           />
         </section>
 
         <section className="content">
-          {selectedLink ? (
-            <StatsPanel
-              key={selectedLink.code}
-              link={selectedLink}
-              onCopy={copyLink}
-              onShowQR={setQrLink}
+          {selection === VIEW_ALL && (
+            <AggregateStatsPanel
+              title="All links"
+              icon="🔗"
+              links={links}
+              emptyMessage="No links yet — create one above to get started."
             />
-          ) : (
-            <div className="empty-panel content-empty">
-              <span className="empty-panel-icon">📊</span>
-              <p className="empty-state">Select a link to see its stats.</p>
-            </div>
+          )}
+          {selection === VIEW_FAVORITES && (
+            <AggregateStatsPanel
+              title="Favourites"
+              icon="⭐"
+              links={favoriteLinks}
+              emptyMessage="No favourites yet — star a link to see it here."
+            />
+          )}
+          {selectedLink && (
+            <StatsPanel key={selectedLink.code} link={selectedLink} onCopy={copyLink} onShowQR={setQrLink} />
           )}
         </section>
       </main>

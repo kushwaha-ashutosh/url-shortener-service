@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
-import { ApiError, getStats, type Stats } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { fetchAggregateStats } from "../aggregateStats";
+import type { Stats } from "../api";
 import type { StoredLink } from "../useLocalLinks";
 import { DailyClicksChart } from "./DailyClicksChart";
 import { NamedCountTable } from "./NamedCountTable";
 
 interface Props {
-  link: StoredLink;
-  onCopy: (link: StoredLink) => void;
-  onShowQR: (link: StoredLink) => void;
+  title: string;
+  icon: string;
+  links: StoredLink[];
+  emptyMessage: string;
 }
 
 const POLL_INTERVAL_MS = 5000;
 
-export function StatsPanel({ link, onCopy, onShowQR }: Props) {
+export function AggregateStatsPanel({ title, icon, links, emptyMessage }: Props) {
+  const codes = useMemo(() => links.map((l) => l.code), [links]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,27 +24,34 @@ export function StatsPanel({ link, onCopy, onShowQR }: Props) {
 
     async function load() {
       try {
-        const s = await getStats(link.code);
+        const s = await fetchAggregateStats(codes);
         if (!cancelled) {
           setStats(s);
           setError(null);
         }
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Could not reach the API");
+      } catch {
+        if (!cancelled) setError("Could not reach the API");
       }
     }
 
     load();
-    // Clicks flush asynchronously on the backend (batched every ~2s),
-    // so a newly-created click doesn't show up instantly — polling
-    // here reflects that same eventual-consistency the API itself has.
     const interval = setInterval(load, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [link.code]);
+    // codes is re-derived (new array) only when `links` itself changes,
+    // via the useMemo above — safe to depend on directly.
+  }, [codes]);
+
+  if (links.length === 0) {
+    return (
+      <div className="empty-panel content-empty">
+        <span className="empty-panel-icon">{icon}</span>
+        <p className="empty-state">{emptyMessage}</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -52,7 +62,7 @@ export function StatsPanel({ link, onCopy, onShowQR }: Props) {
     );
   }
   if (!stats) {
-    return <StatsSkeleton />;
+    return <AggregateSkeleton />;
   }
 
   const topReferrer = stats.top_referrers?.[0];
@@ -62,36 +72,12 @@ export function StatsPanel({ link, onCopy, onShowQR }: Props) {
     <div className="stats-panel">
       <div className="stats-header">
         <div>
-          <h2>{stats.code}</h2>
-          <div className="short-url-row">
-            <a
-              className="open-btn"
-              href={link.short_url}
-              target="_blank"
-              rel="noreferrer noopener"
-              title="Open — follows the redirect to the destination"
-            >
-              {link.short_url.replace(/^https?:\/\//, "")}
-              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
-                <path d="M6.5 3.5h-3v9h9v-3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M9.5 2.5h4v4M13.3 2.7 7.5 8.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </a>
-            <button type="button" className="short-url-btn" onClick={() => onCopy(link)} title="Copy short URL">
-              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
-                <rect x="5" y="5" width="9" height="9" rx="1.5" />
-                <path d="M3 10.5V3a1 1 0 0 1 1-1h7.5" />
-              </svg>
-            </button>
-            <button type="button" className="qr-btn" onClick={() => onShowQR(link)}>
-              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
-                <rect x="2" y="2" width="5" height="5" rx="0.5" />
-                <rect x="9" y="2" width="5" height="5" rx="0.5" />
-                <rect x="2" y="9" width="5" height="5" rx="0.5" />
-              </svg>
-              QR code
-            </button>
-          </div>
+          <h2>
+            {icon} {title}
+          </h2>
+          <p className="aggregate-count">
+            {links.length} link{links.length === 1 ? "" : "s"}
+          </p>
         </div>
       </div>
 
@@ -123,7 +109,7 @@ export function StatsPanel({ link, onCopy, onShowQR }: Props) {
   );
 }
 
-function StatsSkeleton() {
+function AggregateSkeleton() {
   return (
     <div className="stats-panel">
       <div className="skeleton skeleton-title" />

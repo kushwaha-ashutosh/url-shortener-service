@@ -1,16 +1,25 @@
-import type { Link } from "../api";
+import type { StoredLink } from "../useLocalLinks";
 import { colorForIndex } from "../palette";
 
 interface Props {
-  links: Link[];
+  links: StoredLink[];
   selectedCode: string | null;
   onSelect: (code: string) => void;
   onRemove: (code: string) => void;
-  onCopy: (link: Link) => void;
-  onShowQR: (link: Link) => void;
+  onCopy: (link: StoredLink) => void;
+  onShowQR: (link: StoredLink) => void;
+  onToggleFavorite: (code: string) => void;
 }
 
-export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy, onShowQR }: Props) {
+export function LinksList({
+  links,
+  selectedCode,
+  onSelect,
+  onRemove,
+  onCopy,
+  onShowQR,
+  onToggleFavorite,
+}: Props) {
   if (links.length === 0) {
     return (
       <div className="empty-panel">
@@ -45,6 +54,17 @@ export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy, onS
             </span>
           </div>
           <div className="link-actions">
+            <button
+              type="button"
+              className={`icon-btn favorite-btn ${link.favorite ? "is-favorite" : ""}`}
+              title={link.favorite ? "Remove from favourites" : "Add to favourites"}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(link.code);
+              }}
+            >
+              {link.favorite ? "★" : "☆"}
+            </button>
             <button
               type="button"
               className="icon-btn"

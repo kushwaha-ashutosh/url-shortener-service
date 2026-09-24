@@ -19,6 +19,13 @@ watching their stats update live.
   only in this page)
 - Click a short link directly (a real `<a href>`, opens in a new tab)
   to actually follow the redirect, separately from copying it
+- Star any link as a favourite, and switch between three views: one
+  link's stats, an "All links" aggregate, or a "Favourites" aggregate
+  — the aggregates are computed client-side by fetching each link's
+  stats and merging them (there's still no backend "list all links" or
+  "aggregate stats" endpoint, so this is dashboard-only math, not a new
+  API capability). Opens to "All links" by default instead of an empty
+  "select a link" placeholder.
 
 No charting library — the bar chart is ~30 lines of hand-rolled SVG
 with a custom hover tooltip. Worth revisiting once this needs more

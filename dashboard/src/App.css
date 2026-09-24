@@ -200,6 +200,43 @@ header h1 {
   margin-bottom: 10px;
 }
 
+/* --- view tabs (All links / Favourites) --- */
+
+.view-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.view-tab {
+  flex: 1;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 12.5px;
+  padding: 9px 10px;
+  border-radius: 999px;
+  opacity: 0.75;
+}
+
+.view-tab:hover {
+  opacity: 1;
+}
+
+.view-tab.active {
+  opacity: 1;
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.aggregate-count {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.55;
+}
+
 /* --- links list --- */
 
 .links-list {
@@ -297,6 +334,19 @@ header h1 {
 .icon-btn.danger:hover {
   color: var(--danger);
   background: var(--coral-soft);
+}
+
+.favorite-btn {
+  font-size: 15px;
+  color: var(--amber);
+}
+
+.favorite-btn.is-favorite {
+  opacity: 1;
+}
+
+.favorite-btn.is-favorite:hover {
+  background: var(--amber-soft);
 }
 
 /* --- stats panel --- */
