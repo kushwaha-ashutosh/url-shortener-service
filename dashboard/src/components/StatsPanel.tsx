@@ -63,8 +63,20 @@ export function StatsPanel({ link, onCopy, onShowQR }: Props) {
         <div>
           <h2>{stats.code}</h2>
           <div className="short-url-row">
-            <button type="button" className="short-url-btn" onClick={() => onCopy(link)}>
+            <a
+              className="open-btn"
+              href={link.short_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              title="Open — follows the redirect to the destination"
+            >
               {link.short_url.replace(/^https?:\/\//, "")}
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
+                <path d="M6.5 3.5h-3v9h9v-3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M9.5 2.5h4v4M13.3 2.7 7.5 8.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
+            <button type="button" className="short-url-btn" onClick={() => onCopy(link)} title="Copy short URL">
               <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4">
                 <rect x="5" y="5" width="9" height="9" rx="1.5" />
                 <path d="M3 10.5V3a1 1 0 0 1 1-1h7.5" />

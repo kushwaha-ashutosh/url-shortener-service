@@ -30,7 +30,16 @@ export function LinksList({ links, selectedCode, onSelect, onRemove, onCopy, onS
           onClick={() => onSelect(link.code)}
         >
           <div className="link-info">
-            <span className="short-url">{link.short_url.replace(/^https?:\/\//, "")}</span>
+            <a
+              className="short-url"
+              href={link.short_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              title="Open — follows the redirect to the destination"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {link.short_url.replace(/^https?:\/\//, "")}
+            </a>
             <span className="long-url" title={link.long_url}>
               {link.long_url}
             </span>

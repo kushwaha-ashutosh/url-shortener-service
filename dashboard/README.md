@@ -17,6 +17,8 @@ watching their stats update live.
 - View or download a link's QR code (generated server-side by the
   backend, so it's a real, cacheable image, not something rendered
   only in this page)
+- Click a short link directly (a real `<a href>`, opens in a new tab)
+  to actually follow the redirect, separately from copying it
 
 No charting library — the bar chart is ~30 lines of hand-rolled SVG
 with a custom hover tooltip. Worth revisiting once this needs more
