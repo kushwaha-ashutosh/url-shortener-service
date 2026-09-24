@@ -29,8 +29,12 @@ services:
         value: "*" # the API has no auth/cookies to protect; see internal/api/middleware.go
 
   # Static sites are always free on Render — no plan field needed.
-  - type: static
+  # Note: type stays "web" here; env: static is what makes it a static
+  # site (type: static isn't a valid value in Render's blueprint schema
+  # — found out by the blueprint sync itself rejecting it).
+  - type: web
     name: url-shortener-dashboard
+    env: static
     rootDir: dashboard
     buildCommand: npm install && npm run build
     staticPublishPath: dist
