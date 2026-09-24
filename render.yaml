@@ -1,0 +1,28 @@
+# Render Blueprint — deploys the app as a Docker web service.
+# Postgres and Redis are NOT defined here: this project uses external
+# managed free tiers (Neon for Postgres, Upstash for Redis) instead of
+# Render's own database services, so DATABASE_URL and REDIS_ADDR are
+# set as secrets in the Render dashboard, not in this file.
+#
+# See README.md "Deploying" for the full setup.
+services:
+  - type: web
+    name: url-shortener
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: BASE_URL
+        sync: false # fill in after the first deploy, once Render assigns the service's URL
+      - key: DATABASE_URL
+        sync: false # from Neon
+      - key: REDIS_ADDR
+        sync: false # from Upstash, a rediss:// URL
+      - key: RATE_LIMIT_REQUESTS
+        value: "20"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: ALLOWED_ORIGIN
+        value: "*" # the API has no auth/cookies to protect; see internal/api/middleware.go

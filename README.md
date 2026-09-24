@@ -185,6 +185,52 @@ update live via polling. See [dashboard/README.md](dashboard/README.md)
 for setup; the backend's `ALLOWED_ORIGIN` env var needs to match
 wherever it's served from (defaults to Vite's `:5173`).
 
+## Deploying
+
+Free-tier deployment across three providers rather than one all-in-one
+platform, since none of the always-free single-platform options are
+reliably free anymore: [Render](https://render.com) for the app,
+[Neon](https://neon.tech) for Postgres, [Upstash](https://upstash.com)
+for Redis. Account creation on each is something only you can do —
+here's the exact path.
+
+**1. Postgres (Neon)**
+1. Create a free account at neon.tech, create a project.
+2. Copy the connection string it gives you (looks like
+   `postgres://user:pass@ep-xxx.neon.tech/dbname?sslmode=require`) —
+   this is your `DATABASE_URL`.
+3. Open Neon's SQL Editor (in their dashboard) and paste in the
+   contents of [migrations/0001_init.sql](migrations/0001_init.sql),
+   then run it. This is the one manual migration step — there's no
+   `docker-entrypoint-initdb.d` equivalent on a managed Postgres.
+
+**2. Redis (Upstash)**
+1. Create a free account at upstash.com, create a Redis database.
+2. Copy the `rediss://` connection string from its "Connect" tab
+   (note the double-s — Upstash requires TLS). This is your
+   `REDIS_ADDR`; the app accepts either a plain `host:port` (local
+   dev) or a full `redis://`/`rediss://` URL (see
+   [internal/cache/redis.go](internal/cache/redis.go)).
+
+**3. The app (Render)**
+1. Create a free account at render.com and connect your GitHub account.
+2. New → Blueprint → select this repo. Render reads
+   [render.yaml](render.yaml) and creates a free Docker web service
+   from the [Dockerfile](Dockerfile) automatically.
+3. In the service's Environment tab, set the secrets `render.yaml`
+   left blank: `DATABASE_URL` (from Neon), `REDIS_ADDR` (from
+   Upstash — the `rediss://` URL).
+4. Deploy. Once it's live, Render assigns a URL like
+   `https://url-shortener-xxxx.onrender.com` — set that as `BASE_URL`
+   in the same Environment tab and redeploy, so short links the app
+   generates point at itself, not `localhost`.
+
+**Note on the free tier:** the Render free plan sleeps the service
+after inactivity; the first request after a while wakes it back up
+with a several-second delay. Fine for a portfolio demo, not for
+anything latency-sensitive — see [loadtest/README.md](loadtest/README.md)
+for what this service's actual latency looks like when it's warm.
+
 ## Load testing
 
 See [loadtest/README.md](loadtest/README.md) — the redirect path holds
@@ -206,4 +252,4 @@ attributed and explained rather than glossed over.
       testcontainers-go) — the stats aggregation SQL is currently only
       verified manually, since `internal/store` has no automated tests yet
 - [x] Chaos test: kill Redis mid-load (found and fixed a real 20-30s hang — see [chaos/README.md](chaos/README.md))
-- [ ] Deploy publicly (Fly.io/Railway) so the demo link is real
+- [ ] Deploy publicly (Render/Neon/Upstash — see "Deploying" above) so the demo link is real

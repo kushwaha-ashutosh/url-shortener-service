@@ -31,7 +31,11 @@ func main() {
 	}
 	defer s.Close()
 
-	c := cache.New(cfg.RedisAddr)
+	c, err := cache.New(cfg.RedisAddr)
+	if err != nil {
+		log.Error("invalid redis address/URL", "error", err)
+		os.Exit(1)
+	}
 	if err := c.Ping(ctx); err != nil {
 		log.Error("failed to connect to redis", "error", err)
 		os.Exit(1)

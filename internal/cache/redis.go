@@ -5,6 +5,8 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -32,14 +34,27 @@ type Cache struct {
 	rdb *redis.Client
 }
 
-func New(addr string) *Cache {
-	return &Cache{rdb: redis.NewClient(&redis.Options{
-		Addr:         addr,
-		DialTimeout:  dialTimeout,
-		ReadTimeout:  readTimeout,
-		WriteTimeout: writeTimeout,
-		MaxRetries:   -1, // disabled: a stuck retry loop defeats the point of failing fast
-	})}
+// New accepts either a plain "host:port" (local dev, e.g. Docker
+// Compose's redis service) or a full connection URL — "redis://" or
+// "rediss://" for a TLS-requiring managed provider like Upstash,
+// which is how REDIS_ADDR needs to look in production.
+func New(addrOrURL string) (*Cache, error) {
+	var opt *redis.Options
+	if strings.Contains(addrOrURL, "://") {
+		parsed, err := redis.ParseURL(addrOrURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid redis URL: %w", err)
+		}
+		opt = parsed
+	} else {
+		opt = &redis.Options{Addr: addrOrURL}
+	}
+	opt.DialTimeout = dialTimeout
+	opt.ReadTimeout = readTimeout
+	opt.WriteTimeout = writeTimeout
+	opt.MaxRetries = -1 // disabled: a stuck retry loop defeats the point of failing fast
+
+	return &Cache{rdb: redis.NewClient(opt)}, nil
 }
 
 func (c *Cache) Ping(ctx context.Context) error {
